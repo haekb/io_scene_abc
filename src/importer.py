@@ -79,6 +79,7 @@ def import_model(model, options):
         '''
         (forward, right, up) = map(lambda x: -x.xyz, node.bind_matrix.col[0:3])
 
+
         if node.children:
             '''
             This bone has children. To determine the tail position of this bone,
@@ -336,7 +337,7 @@ def import_model(model, options):
             # For every keyframe
             for keyframe_index, keyframe in enumerate(animation.keyframes):
                 # Set keyframe time - Scale it down because it's way too slow for testing
-                Context.scene.frame_set(keyframe.time * 0.01)
+                Context.scene.frame_set(keyframe.time * 0.05)
            
                 '''
                 Recursively apply transformations to a nodes children
@@ -348,24 +349,45 @@ def import_model(model, options):
                     pose_bone = pose_bones[node_index]
                     original_index = node_index
 
-                    #print("[",node_index,"] Applying transform to : ", node.name)
+                    pose_bone.rotation_mode = 'QUATERNION'
 
+                    #print("[",node_index,"] Applying transform to : ", node.name)
 
                     # Get the current transform
                     transform = animation.node_keyframe_transforms[node_index][keyframe_index]
-
+                    corrective_quaternion = Matrix.Rotation(math.radians(90), 4, 'Z').to_quaternion()
                     # Correct-ish
-                    # rotation = Quaternion( (transform.rotation.w, -transform.rotation.z, -transform.rotation.x, transform.rotation.y) )
+                    rotation = armature_object.rotation_quaternion.inverted() @ pose_bone.bone.matrix_local.to_quaternion().inverted() @ transform.rotation # transform.rotation @ corrective_quaternion # Quaternion( (transform.rotation.w, -transform.rotation.z, -transform.rotation.x, transform.rotation.y) )
+
+                    #rotation = transform.rotation
+                    #rotation = transform.rotation # Quaternion( (-transform.rotation.w, transform.rotation.z, transform.rotation.x, transform.rotation.y) )
+                    # rotation = rotation.inverted()
+
+                    # Get us a nice 4x4 matrix
+                    matrix = rotation.to_matrix().to_4x4()
+
+                    transform.location.z *= -1
+                    # ?
+                    if not node.uses_relative_location: 
+                        translation = Matrix.Translation( armature_object.matrix_world.inverted() @ pose_bone.bone.matrix_local.inverted() @ -transform.location ) 
+                    else:
+                        translation = Matrix().to_4x4()
+
+                    scale = Matrix.Scale(1.0, 4, Vector( (1.0, 1.0, 1.0) ) )
+
+                    matrix = translation @ matrix @ scale
+                    # matrix = matrix.inverted()
+
+                    # print("Node name", node.name)
+                    # print("Node is removable? ", node.is_removable)
+                    # print("Node uses relative location", node.uses_relative_location)
+
+                    # Apply the translation - Make sure to match the order in rotation
+                    #matrix.translation = Vector( (-transform.location.z, -transform.location.x, transform.location.y) )
+                    # matrix.translation = Vector( (transform.location.z, transform.location.y, transform.location.x) )
 
 
-                    rotation = Quaternion( (transform.rotation.w, -transform.rotation.z, -transform.rotation.x, transform.rotation.y) )
 
-                    matrix = rotation.to_matrix().to_4x4() # transform.rotation.to_matrix().to_4x4()
-
-                    # Apply the translation
-                    matrix.Translation(transform.location.xzy)
-    
-                    
                     # Use a matrix instead!
                     pose_bone.matrix = parent_matrix @ matrix
 
@@ -389,7 +411,7 @@ def import_model(model, options):
                 Func End
                 '''
 
-                recursively_apply_transform(model.nodes, 0, armature_object.pose.bones, Matrix())
+                recursively_apply_transform(model.nodes, 1, armature_object.pose.bones, Matrix())
 
                 # For every bone
                 for bone, node in zip(armature_object.pose.bones, model.nodes):
