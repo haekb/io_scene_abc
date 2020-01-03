@@ -355,9 +355,12 @@ def import_model(model, options):
 
                     # Get the current transform
                     transform = animation.node_keyframe_transforms[node_index][keyframe_index]
-                    corrective_quaternion = Matrix.Rotation(math.radians(90), 4, 'Z').to_quaternion()
+                    #corrective_quaternion = Matrix.Rotation(math.radians(90), 4, 'Z').to_quaternion()
                     # Correct-ish
-                    rotation = armature_object.rotation_quaternion.inverted() @ pose_bone.bone.matrix_local.to_quaternion().inverted() @ transform.rotation # transform.rotation @ corrective_quaternion # Quaternion( (transform.rotation.w, -transform.rotation.z, -transform.rotation.x, transform.rotation.y) )
+
+                    rotation = transform.rotation #@ corrective_quaternion
+                    # rotation = Quaternion( (transform.rotation.w, transform.rotation.x, transform.rotation.y, transform.rotation.z) )
+                    #rotation = armature_object.rotation_quaternion.inverted() @ pose_bone.bone.matrix_local.to_quaternion().inverted() @ transform.rotation # transform.rotation @ corrective_quaternion # Quaternion( (transform.rotation.w, -transform.rotation.z, -transform.rotation.x, transform.rotation.y) )
 
                     #rotation = transform.rotation
                     #rotation = transform.rotation # Quaternion( (-transform.rotation.w, transform.rotation.z, transform.rotation.x, transform.rotation.y) )
@@ -366,12 +369,12 @@ def import_model(model, options):
                     # Get us a nice 4x4 matrix
                     matrix = rotation.to_matrix().to_4x4()
 
-                    transform.location.z *= -1
+                    # transform.location.z *= -1
                     # ?
-                    if not node.uses_relative_location: 
-                        translation = Matrix.Translation( armature_object.matrix_world.inverted() @ pose_bone.bone.matrix_local.inverted() @ -transform.location ) 
-                    else:
-                        translation = Matrix().to_4x4()
+                    #if not node.uses_relative_location: 
+                    translation = Matrix.Translation( transform.location ) # Matrix.Translation( armature_object.matrix_world.inverted() @ pose_bone.bone.matrix_local.inverted() @ -transform.location ) 
+                    #else:
+                    #    translation = Matrix().to_4x4()
 
                     scale = Matrix.Scale(1.0, 4, Vector( (1.0, 1.0, 1.0) ) )
 
@@ -389,7 +392,9 @@ def import_model(model, options):
 
 
                     # Use a matrix instead!
-                    pose_bone.matrix = parent_matrix @ matrix
+                    combined_matrix = parent_matrix @ matrix
+
+                    pose_bone.matrix = combined_matrix
 
                     # Recursively apply our transform to our children!
                     # print("[",node_index,"] Found children count : ", node.child_count)
@@ -401,7 +406,7 @@ def import_model(model, options):
                         node_index = node_index + 1
                         #print("[",original_index,"] Applying transform to child : ", nodes[node_index].name)
 
-                        node_index = recursively_apply_transform(nodes, node_index, pose_bones, pose_bone.matrix)
+                        node_index = recursively_apply_transform(nodes, node_index, pose_bones, combined_matrix)
                     
                     #if (node.child_count):
                     #    print("[",original_index,"] Recurse End   --- ",node.name)
@@ -466,9 +471,9 @@ class ImportOperator(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     )
 
     should_import_animations = BoolProperty(
-        name="Import Animations (not yet working)",
+        name="Import Animations (WIP)",
         description="When checked, animations will be imported as actions.",
-        default=False,
+        default=True,
     )
 
     should_import_sockets = BoolProperty(
@@ -490,7 +495,7 @@ class ImportOperator(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     )
 
     should_clear_scene = BoolProperty(
-        name="Clear Scene",
+        name="Clear Scene (not yet working)",
         description="When checked, the scene will be cleared before the model is imported.",
         default=False,
     )
