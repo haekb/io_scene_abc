@@ -3,7 +3,7 @@ import bpy_extras
 import bmesh
 import os
 import math
-from math import pi
+from math import *
 from mathutils import Vector, Matrix, Quaternion, Euler
 from bpy.props import StringProperty, BoolProperty, FloatProperty
 from .dtx import DTX
@@ -22,7 +22,7 @@ class ModelImportOptions(object):
 
 
 def import_model(model, options):
-    # utils.delete_all_objects()
+    utils.delete_all_objects()
 
     # This seems to be the rage these days
     Context = bpy.context
@@ -51,6 +51,47 @@ def import_model(model, options):
 
     Context.view_layer.objects.active = armature_object
     Ops.object.mode_set(mode='EDIT')
+
+
+    '''
+    Me trying to figure out how the bones work, dead code
+    '''
+
+    # def recursively_create_bones(nodes, node_index):
+    #     node = nodes[node_index]
+
+    #     # Create a new bone
+    #     bone = armature.edit_bones.new(node.name)
+
+    #     '''
+    #     We can be assured that the parent will always be found because
+    #     the node list is in the same order as a depth-first traversal of the
+    #     node hierarchy.
+    #     '''
+    #     bone.parent = armature.edit_bones[node.parent.name] if node.parent else None
+    #     bone.tail = (1,0,0)
+    #     # No Scale, Yes Roll!
+    #     bone.transform(node.bind_matrix, False, True)
+
+    #     if bone.parent is not None:
+    #         bone.parent.tail = bone.head
+    #         bone.use_connect = bone.parent.tail == bone.head
+    #     else:
+    #         # Todo: Face forward plain!
+    #         bone.head = (1,0,0)
+    #         pass
+
+    #     for index in range(0, node.child_count):
+    #         node_index = node_index + 1
+    #         node_index = recursively_create_bones(nodes, node_index)
+    #     #End For
+
+    #     return node_index
+    #     # Fin
+
+
+    # # Create dem bones
+    # recursively_create_bones(model.nodes, 0)
 
     for node in model.nodes:
         bone = armature.edit_bones.new(node.name)
@@ -128,7 +169,7 @@ def import_model(model, options):
                 bone_length = options.bone_length_min
             bone.tail = bone.head + bone_length * forward
 
-            # TODO: Now calculate the roll of the bone.
+    #         # TODO: Now calculate the roll of the bone.
 
     Ops.object.mode_set(mode='OBJECT')
 
@@ -311,6 +352,8 @@ def import_model(model, options):
             mesh_object.parent = armature_object
 
     ''' Animations '''
+
+    Ops.object.mode_set(mode='POSE')
     if options.should_import_animations:
         for ob in bpy.context.scene.objects:
             ob.animation_data_clear()
@@ -323,10 +366,12 @@ def import_model(model, options):
 
         index = 0
         for animation in model.animations:
-            print("Processing ", animation.name)
+            
+            # Break after the first animation for testing
             if(index > 0):
                 break
 
+            print("Processing Animation ", animation.name)
             index  = index + 1
             # Create a new action with the animation name
             action = bpy.data.actions.new(name=animation.name)
@@ -338,7 +383,7 @@ def import_model(model, options):
             for keyframe_index, keyframe in enumerate(animation.keyframes):
                 # Set keyframe time - Scale it down because it's way too slow for testing
                 Context.scene.frame_set(keyframe.time * 0.05)
-           
+
                 '''
                 Recursively apply transformations to a nodes children
                 Notes: It carries everything (nodes, pose_bones..) with it, because I expected it to not be a child of this scope...oops!
@@ -346,8 +391,8 @@ def import_model(model, options):
                 def recursively_apply_transform(nodes, node_index, pose_bones, parent_matrix):
                     # keyframe_index = 0
                     node = nodes[node_index]
+                    bone = armature.bones[node.name]
                     pose_bone = pose_bones[node_index]
-                    original_index = node_index
 
                     pose_bone.rotation_mode = 'QUATERNION'
 
@@ -355,68 +400,43 @@ def import_model(model, options):
 
                     # Get the current transform
                     transform = animation.node_keyframe_transforms[node_index][keyframe_index]
-                    #corrective_quaternion = Matrix.Rotation(math.radians(90), 4, 'Z').to_quaternion()
-                    # Correct-ish
+   
+                    rotation = transform.rotation
+                    location = transform.location
 
-                    rotation = transform.rotation #@ corrective_quaternion
-                    # rotation = Quaternion( (transform.rotation.w, transform.rotation.x, transform.rotation.y, transform.rotation.z) )
-                    #rotation = armature_object.rotation_quaternion.inverted() @ pose_bone.bone.matrix_local.to_quaternion().inverted() @ transform.rotation # transform.rotation @ corrective_quaternion # Quaternion( (transform.rotation.w, -transform.rotation.z, -transform.rotation.x, transform.rotation.y) )
-
-                    #rotation = transform.rotation
-                    #rotation = transform.rotation # Quaternion( (-transform.rotation.w, transform.rotation.z, transform.rotation.x, transform.rotation.y) )
-                    # rotation = rotation.inverted()
-
-                    # Get us a nice 4x4 matrix
-                    matrix = rotation.to_matrix().to_4x4()
-
-                    # transform.location.z *= -1
-                    # ?
-                    #if not node.uses_relative_location: 
-                    translation = Matrix.Translation( transform.location ) # Matrix.Translation( armature_object.matrix_world.inverted() @ pose_bone.bone.matrix_local.inverted() @ -transform.location ) 
-                    #else:
-                    #    translation = Matrix().to_4x4()
-
-                    scale = Matrix.Scale(1.0, 4, Vector( (1.0, 1.0, 1.0) ) )
-
-                    matrix = translation @ matrix @ scale
-                    # matrix = matrix.inverted()
-
-                    # print("Node name", node.name)
-                    # print("Node is removable? ", node.is_removable)
-                    # print("Node uses relative location", node.uses_relative_location)
-
-                    # Apply the translation - Make sure to match the order in rotation
-                    #matrix.translation = Vector( (-transform.location.z, -transform.location.x, transform.location.y) )
-                    # matrix.translation = Vector( (transform.location.z, transform.location.y, transform.location.x) )
+                    # Create a matrix from the transform data
+                    matrix = Matrix.Translation(location) @ rotation.to_matrix().to_4x4()
 
 
+                    # FIXME: Animation data is in WORLD space coordinates afaik, we need them in smol space.
+                    # This doesn't work as intended.
+                    #matrix = armature_object.convert_space(pose_bone=pose_bone, matrix=matrix, from_space='WORLD', to_space='POSE')
+                    
+                    # obj = pose_bone.id_data
+                    # matrix = obj.matrix_world.inverted() @ matrix  # pose_bone.matrix
+                    
+                    # If we have a parent merge the two, otherwise just use the base transform
+                    if pose_bone.bone.parent:
+                        #combined_matrix = pose_bone.parent.matrix @ matrix
+                        combined_matrix = parent_matrix @ matrix
+                    else:
+                        combined_matrix = matrix
 
-                    # Use a matrix instead!
-                    combined_matrix = parent_matrix @ matrix
-
+                    # Apply the bone matrix!
                     pose_bone.matrix = combined_matrix
-
-                    # Recursively apply our transform to our children!
-                    # print("[",node_index,"] Found children count : ", node.child_count)
-
-                    #if (node.child_count):
-                    #    print("[",original_index,"] Recurse Start --- ",node.name)
 
                     for index in range(0, node.child_count):
                         node_index = node_index + 1
-                        #print("[",original_index,"] Applying transform to child : ", nodes[node_index].name)
-
+                     
                         node_index = recursively_apply_transform(nodes, node_index, pose_bones, combined_matrix)
                     
-                    #if (node.child_count):
-                    #    print("[",original_index,"] Recurse End   --- ",node.name)
-
                     return node_index
                 '''
                 Func End
                 '''
 
-                recursively_apply_transform(model.nodes, 1, armature_object.pose.bones, Matrix())
+                # Start with the first node (usually the null bone), and recursively crawl through the children
+                recursively_apply_transform(model.nodes, 0, armature_object.pose.bones, Matrix())
 
                 # For every bone
                 for bone, node in zip(armature_object.pose.bones, model.nodes):
@@ -431,6 +451,8 @@ def import_model(model, options):
 
     # Set our keyframe time to 0
     Context.scene.frame_set(0)
+
+    Ops.object.mode_set(mode='OBJECT')
 
     # TODO: make an option to convert to blender coordinate system
     # armature_object.rotation_euler.x = math.radians(90)
