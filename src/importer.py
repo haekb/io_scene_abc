@@ -3,7 +3,8 @@ import bpy_extras
 import bmesh
 import os
 import math
-from mathutils import Vector, Matrix, Quaternion
+from math import pi
+from mathutils import Vector, Matrix, Quaternion, Euler
 from bpy.props import StringProperty, BoolProperty, FloatProperty
 from .dtx import DTX
 from .reader import ModelReader
@@ -21,20 +22,35 @@ class ModelImportOptions(object):
 
 
 def import_model(model, options):
-    utils.delete_all_objects()
+    # utils.delete_all_objects()
+
+    # This seems to be the rage these days
+    Context = bpy.context
+    Data = bpy.data
+    Ops = bpy.ops
+
+    # Create our new collection. This will help us later on..
+    collection = Data.collections.new(model.name)
+    # Add our collection to the scene
+    Context.scene.collection.children.link(collection)
 
     # TODO: clear the orphan list for ultra name purity
-    bpy.ops.object.lamp_add(type='SUN')
+    sun = Data.lights.new(name="Sun", type='SUN')
+    sun_object = Data.objects.new("Sun", sun)
+    collection.objects.link(sun_object)
 
     # Create the armature
     armature = bpy.data.armatures.new(model.name)
     armature_object = bpy.data.objects.new(model.name, armature)
-    armature_object.data.draw_type = 'STICK'
-    armature_object.show_x_ray = True
+    armature_object.data.display_type = 'STICK'
+    armature_object.show_in_front = True
 
-    bpy.context.scene.objects.link(armature_object)
-    bpy.context.scene.objects.active = armature_object
-    bpy.ops.object.mode_set(mode='EDIT')
+    collection.objects.link(armature_object)
+    armature_object.select_set(True)
+    #armature_object.edit_bones()
+
+    Context.view_layer.objects.active = armature_object
+    Ops.object.mode_set(mode='EDIT')
 
     for node in model.nodes:
         bone = armature.edit_bones.new(node.name)
@@ -113,44 +129,54 @@ def import_model(model, options):
 
             # TODO: Now calculate the roll of the bone.
 
-    bpy.ops.object.mode_set(mode='OBJECT')
+    Ops.object.mode_set(mode='OBJECT')
 
     ''' Add sockets as empties with a child-of constraint to the appropriate bone. '''
     if options.should_import_sockets:
         for socket in model.sockets:
-            empty_object = bpy.data.objects.new(socket.name, None)
+            empty_object = Data.objects.new(socket.name, None)
             empty_object.location = socket.location
             empty_object.rotation_quaternion = socket.rotation
-            empty_object.empty_draw_type = 'PLAIN_AXES'
+            empty_object.empty_display_type = 'PLAIN_AXES'
             child_of_constraint = empty_object.constraints.new('CHILD_OF')
             child_of_constraint.target = armature_object
             child_of_constraint.subtarget = model.nodes[socket.node_index].name
             empty_object.parent = armature_object
-            bpy.context.scene.objects.link(empty_object)
+            collection.objects.link(empty_object)
 
     ''' Determine the amount of LODs to import. '''
     lod_import_count = model.lod_count if options.should_import_lods else 1
 
     ''' Create materials. '''
     materials = []
+
     for i, piece in enumerate(model.pieces):
         while len(materials) <= piece.material_index:
             ''' Create a material for the new piece. '''
-            material = bpy.data.materials.new(piece.name)
-            material.diffuse_intensity = 1.0
+            material = Data.materials.new(piece.name)
             material.specular_intensity = piece.specular_power / 100
+
+            material.use_nodes = True
+
             # TODO: maybe put something in here for the specular scale?
             materials.append(material)
 
             ''' Create texture. '''
-            texture = bpy.data.textures.new(piece.name, type='IMAGE')
+            
+            # Swapped over to nodes
+            bsdf = material.node_tree.nodes["Principled BSDF"]
+            texImage = material.node_tree.nodes.new('ShaderNodeTexImage')
+            material.node_tree.links.new(bsdf.inputs['Base Color'], texImage.outputs['Color'])
 
+            texture = Data.textures.new(piece.name, type='IMAGE')
+
+            # Note: Texture image names are stored in ModelButes.txt
             if options.image is not None:
-                texture.image = bpy.data.images.new('okay', width=options.image.width, height=options.image.height, alpha=True) # TODO: get real name
+                texture.image = bpy.data.images.new(piece.name, width=options.image.width, height=options.image.height, alpha=True) # TODO: get real name
                 texture.image.pixels[:] = options.image.pixels[:]
 
-            texture_slot = material.texture_slots.add()
-            texture_slot.texture = texture
+            texImage.image = texture.image
+
 
     ''' Create a mesh for each piece of each LOD level that we are importing. '''
     for lod_index in range(lod_import_count):
@@ -161,19 +187,24 @@ def import_model(model, options):
             mesh_name = piece.name
             if options.should_import_lods:
                 mesh_name += '.LOD{0!s}'.format(lod_index)
-            mesh = bpy.data.meshes.new(model.name)
-            mesh_object = bpy.data.objects.new(mesh_name, mesh)
+            mesh = Data.meshes.new(model.name)
+            mesh_object = Data.objects.new(mesh_name, mesh)
 
             ''' Add materials to mesh. '''
             for material in materials:
                 ''' Create UV map. '''
+                '''
                 uv_texture = mesh.uv_textures.new()
                 mesh.materials.append(material)
                 material.texture_slots[0].uv_layer = uv_texture.name
+                '''
+                uv_texture = mesh.uv_layers.new()
+                mesh.materials.append(material)
+                # material.uv_layers[0].name = uv_texture.name
 
             ''' Create a vertex group for each node. '''
             for node in model.nodes:
-                mesh_object.vertex_groups.new(node.name)
+                mesh_object.vertex_groups.new(name=node.name)
 
             # TODO: these need to be reset for each mesh
             vertex_offset = 0
@@ -228,8 +259,11 @@ def import_model(model, options):
             Assign texture coordinates.
             '''
             material_face_offsets = [0] * len(mesh.materials)
-
             uv_texture = mesh.uv_layers[piece.material_index]
+
+            # Set the correct UV as active
+            uv_texture.active_render = True
+
             for face_index, face in enumerate(lod.faces):
                 material_face_offset = material_face_offsets[0]  # TODO: is this right?
                 texcoords = [vertex.texcoord for vertex in face.vertices]
@@ -252,11 +286,12 @@ def import_model(model, options):
             mesh.validate(clean_customdata=False)
             mesh.update(calc_edges=False)
 
-            bpy.context.scene.objects.link(mesh_object)
+            # add it to our collection c:
+            collection.objects.link(mesh_object)
 
-            if bpy.ops.object.mode_set.poll():
-                bpy.ops.object.mode_set(mode='OBJECT')
-            bpy.ops.object.select_all(action='DESELECT')
+            if Ops.object.mode_set.poll():
+                Ops.object.mode_set(mode='OBJECT')
+            Ops.object.select_all(action='DESELECT')
 
             ''' Add an armature modifier. '''
             armature_modifier = mesh_object.modifiers.new(name='Armature', type='ARMATURE')
@@ -285,23 +320,90 @@ def import_model(model, options):
 
         actions = []
 
+        index = 0
         for animation in model.animations:
+            print("Processing ", animation.name)
+            if(index > 0):
+                break
+
+            index  = index + 1
+            # Create a new action with the animation name
             action = bpy.data.actions.new(name=animation.name)
+            
+            # Temp set
             armature_object.animation_data.action = action
+
+            # For every keyframe
             for keyframe_index, keyframe in enumerate(animation.keyframes):
-                bpy.context.scene.frame_set(keyframe.time)
-                for node_index, (pose_bone, bone, node) in enumerate(zip(armature_object.pose.bones, armature.bones, model.nodes)):
-                    assert(pose_bone.name == node.name)
+                # Set keyframe time - Scale it down because it's way too slow for testing
+                Context.scene.frame_set(keyframe.time * 0.01)
+           
+                '''
+                Recursively apply transformations to a nodes children
+                Notes: It carries everything (nodes, pose_bones..) with it, because I expected it to not be a child of this scope...oops!
+                '''
+                def recursively_apply_transform(nodes, node_index, pose_bones, parent_matrix):
+                    # keyframe_index = 0
+                    node = nodes[node_index]
+                    pose_bone = pose_bones[node_index]
+                    original_index = node_index
+
+                    #print("[",node_index,"] Applying transform to : ", node.name)
+
+
+                    # Get the current transform
                     transform = animation.node_keyframe_transforms[node_index][keyframe_index]
 
+                    # Correct-ish
+                    # rotation = Quaternion( (transform.rotation.w, -transform.rotation.z, -transform.rotation.x, transform.rotation.y) )
+
+
+                    rotation = Quaternion( (transform.rotation.w, -transform.rotation.z, -transform.rotation.x, transform.rotation.y) )
+
+                    matrix = rotation.to_matrix().to_4x4() # transform.rotation.to_matrix().to_4x4()
+
+                    # Apply the translation
+                    matrix.Translation(transform.location.xzy)
+    
+                    
+                    # Use a matrix instead!
+                    pose_bone.matrix = parent_matrix @ matrix
+
+                    # Recursively apply our transform to our children!
+                    # print("[",node_index,"] Found children count : ", node.child_count)
+
+                    #if (node.child_count):
+                    #    print("[",original_index,"] Recurse Start --- ",node.name)
+
+                    for index in range(0, node.child_count):
+                        node_index = node_index + 1
+                        #print("[",original_index,"] Applying transform to child : ", nodes[node_index].name)
+
+                        node_index = recursively_apply_transform(nodes, node_index, pose_bones, pose_bone.matrix)
+                    
+                    #if (node.child_count):
+                    #    print("[",original_index,"] Recurse End   --- ",node.name)
+
+                    return node_index
+                '''
+                Func End
+                '''
+
+                recursively_apply_transform(model.nodes, 0, armature_object.pose.bones, Matrix())
+
+                # For every bone
                 for bone, node in zip(armature_object.pose.bones, model.nodes):
                     bone.keyframe_insert('location')
                     bone.keyframe_insert('rotation_quaternion')
+
+            # Add to actions array
             actions.append(action)
 
+        # Add our actions to animation data
         armature_object.animation_data.action = actions[0]
 
-    bpy.context.scene.frame_set(0)
+    # Set our keyframe time to 0
+    Context.scene.frame_set(0)
 
     # TODO: make an option to convert to blender coordinate system
     # armature_object.rotation_euler.x = math.radians(90)
@@ -365,27 +467,37 @@ class ImportOperator(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
         default=False,
     )
 
+    should_clear_scene = BoolProperty(
+        name="Clear Scene",
+        description="When checked, the scene will be cleared before the model is imported.",
+        default=False,
+    )
+
     def draw(self, context):
         layout = self.layout
 
         box = layout.box()
-        box.label("Nodes")
+        box.label(text='Nodes')
         box.row().prop(self, 'bone_length_min')
         box.row().prop(self, 'should_import_sockets')
 
         box = layout.box()
-        box.label('Meshes')
+        box.label(text='Meshes')
         box.row().prop(self, 'should_import_lods')
         box.row().prop(self, 'should_merge_pieces')
 
         box = layout.box()
-        box.label('Materials')
+        box.label(text='Materials')
         box.row().prop(self, 'should_import_textures')
-        box.row().prop(self, 'should_assign_materials')
+        # box.row().prop(self, 'should_assign_materials')
 
         box = layout.box()
-        box.label('Animations')
+        box.label(text='Animations')
         box.row().prop(self, 'should_import_animations')
+
+        box = layout.box()
+        box.label(text='Misc')
+        box.row().prop(self, 'should_clear_scene')
 
     def execute(self, context):
         # Load the model
@@ -406,6 +518,7 @@ class ImportOperator(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
         options.should_import_animations = self.should_import_animations
         options.should_import_sockets = self.should_import_sockets
         options.should_merge_pieces = self.should_merge_pieces
+        options.should_clear_scene = self.should_clear_scene
         options.image = image
         import_model(model, options)
         return {'FINISHED'}

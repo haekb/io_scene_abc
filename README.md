@@ -1,6 +1,6 @@
 # io_lithtech_abc
 
-This addon provides limited support for importing and exporting Lithtech ABC models (`*.abc`) from [No One Lives Forever](https://en.wikipedia.org/wiki/The_Operative:_No_One_Lives_Forever) to and from Blender 2.79.
+This addon provides limited support for importing and exporting Lithtech ABC models (`*.abc`) from [No One Lives Forever](https://en.wikipedia.org/wiki/The_Operative:_No_One_Lives_Forever) to and from Blender 2.8x.
 
 The ABC file format description can be found on our wiki [here](https://github.com/cmbasnett/io_scene_abc/wiki/ABC).
 
