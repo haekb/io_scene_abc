@@ -17,7 +17,7 @@ The ABC file format description can be found on our wiki [here](https://github.c
 
 Additional format information can be found in [here](https://github.com/haekb/io_scene_lithtech/research)
 
-![](https://raw.githubusercontent.com/cmbasnett/io_scene_abc/master/doc/readme/example.png)
+![](https://raw.githubusercontent.com/haekb/io_scene_lithtech/master/doc/readme/example.png)
 
 ## Notes
 This addon is a **work in progress**! If you would like to help with this project, please contact me on Discord (Colin Basnett#0827).

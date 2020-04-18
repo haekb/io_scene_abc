@@ -4,7 +4,7 @@ from .io import unpack
 from mathutils import Vector, Matrix, Quaternion
 
 
-class ModelReader(object):
+class ABCModelReader(object):
     def __init__(self):
         self._version = 0
         self._node_count = 0

@@ -7,7 +7,11 @@ from math import pi
 from mathutils import Vector, Matrix, Quaternion, Euler
 from bpy.props import StringProperty, BoolProperty, FloatProperty
 from .dtx import DTX
-from .reader import ModelReader
+
+# Format imports
+from .reader_abc_pc import ABCModelReader
+from .reader_ltb_ps2 import PS2LTBModelReader
+
 from . import utils
 
 
@@ -412,7 +416,14 @@ def import_model(model, options):
     return {'FINISHED'}
 
 
-class ImportOperator(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
+#
+# Real rough, but here's the importer classes
+# They're connected in __init__
+# These can definitely be combined at some point...
+#
+
+
+class ImportOperatorABC(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     """This appears in the tooltip of the operator and in the generated docs"""
     bl_idname = 'io_scene_abc.abc_import'  # important since its how bpy.ops.import_test.some_data is constructed
     bl_label = 'Import Lithtech ABC'
@@ -422,7 +433,7 @@ class ImportOperator(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     # ImportHelper mixin class uses this
     filename_ext = ".abc"
 
-    filter_glob = StringProperty(
+    filter_glob: StringProperty(
         default="*.abc",
         options={'HIDDEN'},
         maxlen=255,  # Max internal buffer length, longer would be clamped.
@@ -430,44 +441,44 @@ class ImportOperator(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 
     # List of operator properties, the attributes will be assigned
     # to the class instance from the operator settings before calling.
-    bone_length_min = FloatProperty(
+    bone_length_min: FloatProperty(
         name='Bone Length',
         default=0.1,
         description='The minimum bone length',
         min=0.01
     )
 
-    should_import_lods = BoolProperty(
+    should_import_lods: BoolProperty(
         name="Import LODs",
         description="When checked, LOD meshes will be imported (suffixed with .LOD0, .LOD1 etc.)",
         default=False,
     )
 
-    should_import_animations = BoolProperty(
+    should_import_animations: BoolProperty(
         name="Import Animations (not yet working)",
         description="When checked, animations will be imported as actions.",
         default=False,
     )
 
-    should_import_sockets = BoolProperty(
+    should_import_sockets: BoolProperty(
         name="Import Sockets",
         description="When checked, sockets will be imported as Empty objects.",
         default=True,
     )
 
-    should_merge_pieces = BoolProperty(
+    should_merge_pieces: BoolProperty(
         name="Merge Pieces (not yet working)",
         description="When checked, pieces that share a material index will be merged.",
         default=False,
     )
 
-    should_import_textures = BoolProperty(
+    should_import_textures: BoolProperty(
         name="Import Textures (WIP)",
         description="When checked, pieces that share a material index will be merged.",
         default=False,
     )
 
-    should_clear_scene = BoolProperty(
+    should_clear_scene: BoolProperty(
         name="Clear Scene",
         description="When checked, the scene will be cleared before the model is imported.",
         default=False,
@@ -501,7 +512,7 @@ class ImportOperator(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 
     def execute(self, context):
         # Load the model
-        model = ModelReader().from_file(self.filepath)
+        model = ABCModelReader().from_file(self.filepath)
         model.name = os.path.splitext(os.path.basename(self.filepath))[0]
         image = None
         if self.should_import_textures:
@@ -525,4 +536,120 @@ class ImportOperator(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 
     @staticmethod
     def menu_func_import(self, context):
-        self.layout.operator(ImportOperator.bl_idname, text='Lithtech ABC (.abc)')
+        self.layout.operator(ImportOperatorABC.bl_idname, text='Lithtech ABC (.abc)')
+
+
+class ImportOperatorLTB(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
+    """This appears in the tooltip of the operator and in the generated docs"""
+    bl_idname = 'io_scene_lithtech.ltb_import'  # important since its how bpy.ops.import_test.some_data is constructed
+    bl_label = 'Import Lithtech LTB'
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+
+    # ImportHelper mixin class uses this
+    filename_ext = ".ltb"
+
+    filter_glob: StringProperty(
+        default="*.ltb",
+        options={'HIDDEN'},
+        maxlen=255,  # Max internal buffer length, longer would be clamped.
+    )
+
+    # List of operator properties, the attributes will be assigned
+    # to the class instance from the operator settings before calling.
+    bone_length_min: FloatProperty(
+        name='Bone Length',
+        default=0.1,
+        description='The minimum bone length',
+        min=0.01
+    )
+
+    should_import_lods: BoolProperty(
+        name="Import LODs",
+        description="When checked, LOD meshes will be imported (suffixed with .LOD0, .LOD1 etc.)",
+        default=False,
+    )
+
+    should_import_animations: BoolProperty(
+        name="Import Animations (not yet working)",
+        description="When checked, animations will be imported as actions.",
+        default=False,
+    )
+
+    should_import_sockets: BoolProperty(
+        name="Import Sockets",
+        description="When checked, sockets will be imported as Empty objects.",
+        default=True,
+    )
+
+    should_merge_pieces: BoolProperty(
+        name="Merge Pieces (not yet working)",
+        description="When checked, pieces that share a material index will be merged.",
+        default=False,
+    )
+
+    should_import_textures: BoolProperty(
+        name="Import Textures (WIP)",
+        description="When checked, pieces that share a material index will be merged.",
+        default=False,
+    )
+
+    should_clear_scene: BoolProperty(
+        name="Clear Scene",
+        description="When checked, the scene will be cleared before the model is imported.",
+        default=False,
+    )
+
+    def draw(self, context):
+        layout = self.layout
+
+        # box = layout.box()
+        # box.label(text='Nodes')
+        # box.row().prop(self, 'bone_length_min')
+        # box.row().prop(self, 'should_import_sockets')
+
+        # box = layout.box()
+        # box.label(text='Meshes')
+        # box.row().prop(self, 'should_import_lods')
+        # box.row().prop(self, 'should_merge_pieces')
+
+        # box = layout.box()
+        # box.label(text='Materials')
+        # box.row().prop(self, 'should_import_textures')
+        # # box.row().prop(self, 'should_assign_materials')
+
+        # box = layout.box()
+        # box.label(text='Animations')
+        # box.row().prop(self, 'should_import_animations')
+
+        box = layout.box()
+        box.label(text='Misc')
+        box.row().prop(self, 'should_clear_scene')
+
+    def execute(self, context):
+        # Load the model
+        model = PS2LTBModelReader().from_file(self.filepath)
+        model.name = os.path.splitext(os.path.basename(self.filepath))[0]
+        image = None
+        if self.should_import_textures:
+            filename = os.path.splitext(os.path.basename(self.filepath))[0]
+            skins_directory = os.path.join(os.path.dirname(self.filepath), '..', 'SKINS')
+            texture = os.path.join(skins_directory, filename + '.DTX')
+            try:
+                image = DTX(texture)
+            except IOError:
+                pass
+        options = ModelImportOptions()
+        options.bone_length_min = self.bone_length_min
+        options.should_import_lods = self.should_import_lods
+        options.should_import_animations = self.should_import_animations
+        options.should_import_sockets = self.should_import_sockets
+        options.should_merge_pieces = self.should_merge_pieces
+        options.should_clear_scene = self.should_clear_scene
+        options.image = image
+        import_model(model, options)
+        return {'FINISHED'}
+
+    @staticmethod
+    def menu_func_import(self, context):
+        self.layout.operator(ImportOperatorLTB.bl_idname, text='Lithtech LTB (.ltb)')

@@ -13,7 +13,7 @@ class ExportOperator(Operator, ExportHelper):
     # ExportHelper mixin class uses this
     filename_ext = ".ABC"
 
-    filter_glob = StringProperty(
+    filter_glob: StringProperty(
         default="*.abc",
         options={'HIDDEN'},
         maxlen=255,  # Max internal buffer length, longer would be clamped.
@@ -23,7 +23,7 @@ class ExportOperator(Operator, ExportHelper):
         armatures_iter = filter(lambda x: x.type == 'ARMATURE', context.scene.objects)
         return [(x.name, x.name, '', 'OUTLINER_OB_ARMATURE', 0) for x in armatures_iter]
 
-    armature = EnumProperty(
+    armature: EnumProperty(
         name="Armature",
         description="Choose an amarture to export",
         items=item_cb,
