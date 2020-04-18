@@ -1,0 +1,335 @@
+//------------------------------------------------
+//--- 010 Editor v10.0 Binary Template
+//
+//      File: PS2 LTB
+//   Authors: Jake Breen
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: *.ltb
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+// PS2 LTB
+typedef unsigned char		uint8;
+//typedef unsigned short int	uint16;
+//typedef unsigned int		uint32;
+
+struct Vector3 {
+    float x,y,z;
+};
+struct TexCoord {
+    float u,v;
+};
+
+// I'm bad at names, but this must mean something for the PS2.
+// VIFCodes: https://gtamods.com/wiki/PS2_Native_Geometry
+//
+// 0x11 = Flush - wait for end of microprogram and GIF transfer
+// 0x15 = MSCALF - call micro program
+// 0x6C = Unpack? - unpack the following data and write to VU memory
+//
+struct CommandSignal {
+    short constant1;
+    uchar variable;
+    uchar VIFCode;
+};
+
+struct Section {
+    short StringCount;
+    char String[StringCount];
+};
+
+struct Header {
+    uint32 FileType;
+    uint32 Version;
+    uint32 unkPadding[3];
+    uint32 OffsetOffset; // Offset Section Offset...
+    uint32 PieceOffset; // Maybe?
+    uint32 NodeOffset; 
+    uint32 SubModelOffset;
+    uint32 AnimationOffset;
+    uint32 SocketOffset;
+    uint32 FileSize;
+    uint32 padding;//[11];
+    
+};
+
+struct ModelInfo {
+    //uint32 Version;
+    uint32 KeyframeCount;
+    uint32 AnimationCount;
+    uint32 NodeCount;
+    uint32 PieceCount;
+    uint32 ChildModelCount;
+    uint32 TriangleCount;
+    uint32 VertexCount;
+    uint32 WeightCount;
+    uint32 LODCount; // This should be 1, but I have seen a prop with 2!!! D: 
+    uint32 SocketCount;
+    uint32 WeightSetCount;
+    uint32 StringCount;
+    uint32 StringLengthCount;
+    uint32 unknown;
+    short CommandStringLength;
+    char CommandString[CommandStringLength];
+
+    float InternalRadius;
+};
+
+struct FaceVertex {
+    TexCoord UVCoord;
+    uint16 VertexIndex;
+};
+
+struct Face {
+    FaceVertex vertex[3];
+};
+
+struct MeshData
+{
+    Vector3 VertexData;
+    float VertexPadding;
+    Vector3 NormalData;
+    float NormalPadding;
+    TexCoord UVData;
+    float UVPadding;
+    uint32 Unknown;
+};
+
+struct MeshSet
+{
+    uchar DataCount;
+    uchar UnknownFlag; // If 128, then it's the last Set!
+    short Padding;
+    uint32 Unknown1;
+    uint32 Unknown2;
+    uint32 Unknown3;
+    MeshData Data[DataCount] <optimize=false>;
+};
+
+// LOD Zone!
+
+// After Piece and LODSkeletal, this is filled just before LODGlue!
+struct LODStart {
+    uint32 VertexCount;
+    uint32 Unknown1;
+    // Moved these to LODGlue
+    //uint32 Unknown2;
+    //uint32 Unknown[6];
+};
+
+// If there's any remaining data this will be filled just before LOD!
+struct LODGlue {
+    CommandSignal UnknownSignal; // Maybe?
+    uint32 Unknown2;
+    CommandSignal FlushSignal; // Not useful for us, but good to know. Empty if there's no need to flush
+    uint32 Unknown[4];
+};
+
+struct LOD {
+    CommandSignal UnpackSignal;
+    uint32 MeshSetCount;
+    uint32 MeshDataCount;
+    uint32 Zero[2];
+};
+
+struct LODSkeletal {
+    uint32 SkelUnknown[2];
+};
+// End LOD Zone!
+
+struct ModelInfoExtended {
+    uint32 WeightCount; // ??
+    uint32 unk1;
+    uint32 unk2;
+};
+
+struct PieceInfo {
+    uint32 PieceCount;
+};
+
+struct Piece {
+    uint32 Padding1;
+    float SpecularPower;
+    float SpecularScale;
+    float LODWeight;
+    float unkFloatyPadding[12];
+    int Four;
+    int MeshType; // Basically confirmed
+};
+
+struct Node {
+    uint16 NameLength;
+    char   Name[NameLength];
+    uint16 Index;
+    uint16 UnknownPadding;
+    Vector3 Matrix[4];
+    uint32 ChildCount;
+    uint32 UnknownPadding2[5];
+};
+
+struct NodeOther {
+    uint32 WeightSetCount;
+};
+
+// Unknown data at the end of a mesh set..only sometimes though.
+struct MeshSetExtended
+{
+    float Unknown1;
+    float Unknown2;
+    float Unknown3;
+    float Unknown4;
+};
+
+struct EndSignal {
+    uint32 Padding[3];
+    CommandSignal signal;
+};
+
+//Section section;
+Header hdr;
+ModelInfo info;
+
+ModelInfoExtended infoEx;
+
+FSeek(hdr.PieceOffset);
+PieceInfo pieceInfo;
+
+local int i = 0;
+local int count = 0;
+local int meshSetIndex = 0;
+local uint32 meshSetCheck = 0;
+
+local int setStart = 0;
+local int setEnd = 0;
+local int setSize = 0;
+
+Printf("Size Of LODStart   %d \n", sizeof(LODStart));
+Printf("Size of LODGlue    %d \n", sizeof(LODGlue));
+Printf("Size Of LOD        %d \n", sizeof(LOD));
+
+local int peekAmount = 0;
+local int checkForMoreData = 0;
+
+// When checking for more data, we fill these up
+// and then check the constant and VIF command.
+local short UnpackConstant = 0;
+local uchar UnpackVariable = 0;
+local uchar UnpackVIFCommand = 0;
+
+// End Signal Check
+local uint32 EndSignalZero[3] = { 0, 0, 0 };
+local uint32 EndSignalData = 0;
+
+// Okay, let's loop through the pieces
+for(i = 0; i < pieceInfo.PieceCount; i++)
+{
+    // Reset some vars
+    checkForMoreData = 0;
+
+    Piece piece;
+
+    if (piece.MeshType == 5)
+    {
+        LODSkeletal lodSkeletal;
+    }
+
+    LODStart lodStart;
+
+    while (true)
+    {
+        // If they reached about 13kb of data
+        // then check ahead to see if they have an unpack VIF command
+        // that *usually* signifies there's more data.
+        if (checkForMoreData)
+        {
+            peekAmount = sizeof(LODGlue);
+            UnpackConstant = ReadShort(FTell() + peekAmount);
+            UnpackVariable = ReadUByte(FTell() + peekAmount + 2);
+            UnpackVIFCommand = ReadUByte(FTell() + peekAmount + 3);
+
+            if (UnpackConstant != 80 || UnpackVIFCommand != 108)
+            {
+                break;
+            }
+
+            checkForMoreData = 0;
+        }
+
+        // Clear some local variables
+        count = 0;
+
+        LODGlue lodGlue;
+        LOD lod <optimize=false>;
+        
+        setStart = FTell();
+        // Until DataCount is exhausted
+        while(true)
+        {
+            
+            // Check to see if we have our good header
+            //MeshSetCheck dataCheck;
+            meshSetCheck = ReadUInt(FTell() + 4);
+    
+            if (meshSetCheck != 808337408)
+            {
+                FSkip(4*4);
+            }
+    
+            MeshSet Data <optimize=false>;
+            count += Data.DataCount;
+    
+            if (count >= lod.MeshDataCount)
+            {
+                break;
+            }
+    
+            if (Data.UnknownFlag == 128)
+            {
+                break;
+            }
+    
+            meshSetIndex++;
+        }
+        
+        // Check ahead for the end signal, sometimes there's an extra 4*4 row of floats.
+        EndSignalZero[0] = ReadUInt(FTell());
+        EndSignalZero[1] = ReadUInt(FTell() + 4);
+        EndSignalZero[2] = ReadUInt(FTell() + 8);
+        EndSignalData = ReadUInt(FTell() + 12);
+
+        if (EndSignalZero[0] != 0 || EndSignalZero[1] != 0 || EndSignalZero[2] != 0 || EndSignalData != 352321536)
+        {
+            MeshSetExtended dataExtended;
+        }
+
+        // 0x15 = call micro program
+        // I assume this let's the ps2 do its uploading
+        EndSignal endSignal;
+
+        
+        setEnd = FTell();
+        
+        // Calculate batch size
+        setSize = setEnd - setStart;
+
+        Printf("Set Size is %d\n", setSize);
+        
+        // Monolith chose around 13kb as the batch size limit
+        // (The max possible size is 16kb!)
+        // So if we're up there, might be worth checking for more data!
+        if (setSize > 13000)
+        {
+            checkForMoreData = 1;
+        } 
+        else // If we're not at that cap, then we can safely assume there's no more batched data here.
+        {
+            break;
+        }
+    }
+}
+
+FSeek(hdr.NodeOffset);
+Node node[info.NodeCount] <optimize=false>;
+NodeOther nodeOther;
