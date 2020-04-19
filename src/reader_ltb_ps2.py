@@ -17,6 +17,24 @@ import copy
 # See the 010 Editor Template file for the latest info on the format.
 #########################################################################################
 
+# PS2 VIF Command, not entirely sure on all the codes but here's a few..
+# VIFCodes: https://gtamods.com/wiki/PS2_Native_Geometry
+#
+# 0x11 = Flush - wait for end of microprogram and GIF transfer
+# 0x15 = MSCALF - call micro program
+# 0x6C = Unpack? - unpack the following data and write to VU memory
+#
+class VIFCommand(object):
+    def __init__(self):
+        self.constant = 0
+        self.variable = 0
+        self.code = 0
+
+    def read(self, f):
+        self.constant = unpack('h', f)[0]
+        self.variable = unpack('B', f)[0]
+        self.code = unpack('B', f)[0]
+
 class LocalVertex(object):
     def __init__(self):
         self.id = 0
@@ -197,6 +215,7 @@ class VertexList(object):
 
 class PS2LTBModelReader(object):
     def __init__(self):
+        self._file_type = 0
         self._version = 0
         self._node_count = 0
         self._lod_count = 0
@@ -334,16 +353,23 @@ class PS2LTBModelReader(object):
         model = Model()
         model.name = os.path.splitext(os.path.basename(path))[0]
         with open(path, 'rb') as f:
-            next_section_offset = 0
-            #while next_section_offset != -1:
-            #f.seek(next_section_offset)
-
-
 
             # Header
-            file_type = unpack('i', f)[0]
+            self._file_type = unpack('i', f)[0]
             self._version = unpack('i', f)[0]
-            
+
+            print("-------------------------------")
+            print("LithTech LTB (PS2) Model Reader")
+            print("Loading ltb version %d" % self._version)
+
+            # TODO: This should be done before ModelReader, 
+            # so we can split off to ltb (pc) and ltb (ps2) as needed.
+            if self._file_type is not 2:
+                raise Exception('LTB Importer only supports PS2 LTB files.')
+                
+            if self._version is not 16:
+                raise Exception('LTB Importer only supports version 16.')
+
             # Skip past the 3 unknown ints
             f.seek(12, 1)
 
@@ -384,13 +410,16 @@ class PS2LTBModelReader(object):
 
             # We can have multiple pieces!
             for piece_index in range( piece_count ):
+                print("------------------------------------")
+                print("Dawn of a new piece!")
 
+                # Used when loading the actual mesh data
+                # If the previous chunk was 13kb+, 
+                # then we need to peek and see if there's more data instead of the next piece
+                check_for_more_data = False
 
-
+                #########################################################################
                 # HACK: Skip past any bone information, we're going to be looking for 0.8, 0.8, 0.8!
-                
-
-                print("Start! ", f.tell())
                 # Skip past the unknown value
                 f.seek(4, 1)
 
@@ -408,110 +437,118 @@ class PS2LTBModelReader(object):
                     # We only want to move up one!
                     f.seek(-4*2, 1)
 
-                if exit_piece_early == True:
-                    break
-
-
                 # Revert back to our original position
                 f.seek(-(4*5), 1) 
                 # End Hack !
+                #########################################################################
 
                 # Piece
                 f.seek(4 * 18, 1)
                 mesh_type = unpack('i', f)[0]
                 # End Piece
 
-                print("Mesh Type:")
-                print(mesh_type)
+                if mesh_type is 4:
+                    print("Rigid Mesh")
+                elif mesh_type is 5:
+                    print("Skeletal Mesh")
+                elif mesh_type is 6: # Haven't tested or found a VA mesh!
+                    print("Vertex Animated Mesh")
 
                 # LODs
                 finished_lods = False
-
-                                
-                # There's only one LOD per piece!
+    
                 lod = LOD()
                 vertex_list = VertexList()
+                mesh_set_index = 1 # this gets multiplied
+                mesh_index = 0 # triangle_count + vertex_count
+
+                # There's two additional ints with skeletal meshes 
+                if mesh_type is 5:
+                    f.seek( 4 * 2, 1)
+
+                lod_vertex_count = unpack('i', f)[0]
+                lod_unknown = unpack('i', f)[0]
+
+                # Haven't mapped out pieces yet...
+                piece_object = Piece()
+                piece_object.name = "Piece %d" % piece_index
+
+                print("Piece %d " % piece_index)
+
+                # For Each lod (Not really implemented like that right now..)
                 while finished_lods == False:
 
-                    
+                    peek_amount = 0
 
-                    # Skip past 11 unknown ints
-                    f.seek(4* 11, 1)
-                    
-                    # If we're a skeletal mesh, skip past the two unknown ints
-                    if mesh_type == 5:
-                        f.seek(4 * 2, 1)
+                    # If they reached about 13kb of data
+                    # then check ahead to see if they have an unpack VIF command
+                    # that *usually* signifies there's more data.
+                    if check_for_more_data == True:
+                        print("Checking for more data...")
 
+                        # SizeOf(LODGlue)
+                        peek_amount += 28
+
+                        f.seek(peek_amount, 1)
+                        vif_cmd = VIFCommand()
+                        vif_cmd.read(f)
+
+                        # Okay move back to the start
+                        f.seek(-(peek_amount + 4), 1)
+
+                        # If it's not our magic info (Unpack Signal) then there's probably no more data here.
+                        if (vif_cmd.constant is not 0x50 or vif_cmd.code is not 0x6C):
+                            print("No more data found!")
+                            finished_lods = True
+                            break
+                        # End If
+
+                        print("Found an additional batch of data!")
+                        check_for_more_data = False
+                    # End If
+
+                    # LOD Glue 
+                    unknown_command = VIFCommand()
+                    # 4 Bytes
+                    unknown_command.read(f)
+
+                    # Skip unknown
+                    f.seek(4, 1)
+
+                    # This will either be a flush command, or 0
+                    flush_command = VIFCommand()
+                    # 4 Bytes
+                    flush_command.read(f)
+
+                    # Skip past 4 unknown ints
+                    f.seek(4 * 4, 1)
+
+                    # End LOD Glue
+
+                    # LOD
+                    unpack_command = VIFCommand()
+                    # 4 Bytes
+                    unpack_command.read(f)
+
+                    mesh_set_count = unpack('i', f)[0]
                     mesh_data_count = unpack('i', f)[0]
-                    
-                    # Skip past two zero ints
-                    # f.seek(4 * 2, 1)
 
-                    zero_check_1 = -1
-                    zero_check_2 = -1
+                    # Skip past two zeros
+                    f.seek(4 * 2, 1)
 
-                    zero_check_1 = unpack('i', f)[0]
-                    zero_check_2 = unpack('i', f)[0]
-
-                    if (zero_check_1 != 0 or zero_check_2 != 0):
-                        print("Found the end of mesh data!")
-                        finished_lods = True
-                        break
-
-                    # Okay, we're going to loop until we find the unknown flag's 128!
-                    found_end_flag = False
-
-                    # Haven't mapped out pieces yet...
-                    piece_object = Piece()
-                    piece_object.name = "Piece %d" % piece_index
-
-
-                    mesh_set_index = 1 # this gets multiplied
-                    mesh_index = 0 # triangle_count + vertex_count
-                    order = [0, 1, 3, 2]
+                    # End LOD
 
                     running_mesh_data_count = 0
 
+                    size_start = f.tell()
 
-
-
-                    print("------------------------------------")
-                    print("Piece %d " % piece_index)
-
-                    while found_end_flag == False:
-
-                        #print("MESH SET START ----", mesh_set_index)
-
-                        f.seek(4, 1)
-
-                        mesh_set_constant = unpack('I', f)[0]
-
-                        # I'm not sure the correct way of doing this,
-                        # but 808337408 seems to be a constant value on these 'mesh sets'
-                        # So check if that value is there, otherwise it could be a weird junky line.
-                        if mesh_set_constant == 808337408:
-                            # Re-align us back to our original position
-                            f.seek(-(4*2), 1)
-                        else:
-                            # Skip four ints
-                            f.seek(4 * 4, 1)
-
-
+                    # For Each MeshSet
+                    while running_mesh_data_count < mesh_data_count:
+                        print("Running Count / Total : %d/%d" % (running_mesh_data_count, mesh_data_count) )
                         data_count = int.from_bytes(unpack('c', f)[0], 'little')
 
-                        running_mesh_data_count += data_count
-
-                        # I've seen it filled with other values, however 128 seems to signify that it's the last mesh set
+                        # Commonly 0, but occasionally 128. Rarely another value...
                         unknown_flag = int.from_bytes(unpack('c', f)[0], 'little')
-
-                        #if unknown_flag == 128:
-                        #    found_end_flag = True
-
-                        print("Mesh Data Current/Total: ",running_mesh_data_count, mesh_data_count, )
-
-                        # We hit the total mesh data count!
-                        if running_mesh_data_count >= mesh_data_count:
-                            found_end_flag = True
 
                         # Skip past the unknown short
                         f.seek(2, 1)
@@ -519,9 +556,6 @@ class PS2LTBModelReader(object):
                         f.seek(4 * 3, 1)
 
                         # Mesh Set
-                        face = Face()
-
-                        faces_list = []
 
                         for i in range(data_count):
                             print("Data i/count", i, data_count)
@@ -556,11 +590,6 @@ class PS2LTBModelReader(object):
                             face_vertex = FaceVertex()
                             face_vertex.texcoord = uv_data
                             face_vertex.vertex_index = mesh_index
-                            
-                            # Save our current face vertex to our list-o-face verts
-                            face.vertices.append(face_vertex)
-
-                            faces_list.append(face_vertex)
 
                             vertex.location = vertex_data
                             vertex.normal = normal_data
@@ -568,43 +597,48 @@ class PS2LTBModelReader(object):
                             # Local set list
                             vertex_list.append(vertex, mesh_set_index, face_vertex)
 
-
                             mesh_index += 1
-                            # End For 
+                        # End For `i in range(data_count)`
 
-                        mesh_set_index += 1
+                        running_mesh_data_count += data_count
+                    # End While `running_mesh_data_count < mesh_data_count`
 
-                        #print ("MESH SET END ----")
-                        # End Mesh Set
+                    # 0x15 = call micro program
+                    # This probably yells at the GS to read the last VIF packet
+                    end_command = VIFCommand()
+                    # 4 Bytes
+                    end_command.read(f)
 
-                    # Skip the 3 trailing zeros
-                    #f.seek(4 * 3, 1)
+                    size_end = f.tell()
 
-                    
-                    # HACK: We only care about piece 1 right now
-                    #if piece_index != 1:
-                    #    continue
+                    # MeshSet size in bytes
+                    size = size_end - size_start
 
-                    #print("Appending vertices", vertex_list.get_vertex_list())
+                    # If we're bigger than 13kb then check for additional data
+                    # 13kb seems to be about the limit per meshset batch. 
+                    if size > 13000:
+                        print("Batch was over 13kb, checking for more data...")
+                        check_for_more_data = True
+                    else:
+                        print("No more data expected in this batch")
+                        finished_lods = True
+                        break
+                # End While `finished_lods == False`
 
-
-                    #for i in range( len(face_list) ):
-                    #    pass
-                # End Piece
+                # Fill up the LOD
                 lod.vertices += vertex_list.get_vertex_list()
-
                 vertex_list.generate_faces()
-
                 lod.faces += vertex_list.get_face_list()
 
+                # Add the LOD to the piece
                 piece_object.lods = [lod]
-                model.pieces.append(piece_object)
 
-            #for i in range( len(lod.vertices) ):
-            #    print ("Test: " ,i, lod.vertices[i].__dict__)
+                # Add the piece to the model!
+                model.pieces.append(piece_object) 
+
+            # End For `piece_index in range( piece_count )`
 
 
-            
 
             print("Final verticies ", len(lod.vertices))
             print("Final faces ", len(lod.faces))

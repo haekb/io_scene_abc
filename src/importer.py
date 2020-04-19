@@ -597,7 +597,7 @@ class ImportOperatorLTB(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     should_clear_scene: BoolProperty(
         name="Clear Scene",
         description="When checked, the scene will be cleared before the model is imported.",
-        default=False,
+        default=True,
     )
 
     def draw(self, context):
