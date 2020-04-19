@@ -427,15 +427,23 @@ class PS2LTBModelReader(object):
 
                 print ("Looking for hero eights...")
                 while True:
-                    hero_eights = [ unpack('f', f)[0], unpack('f', f)[0], unpack('f', f)[0] ]
-                    #print("Value: ", hero_eights)
-                    #print("Close to 0.8? " , math.isclose(hero_eights[0], 0.8, rel_tol=1e-04))
-                    if math.isclose(hero_eights[0], 0.8, rel_tol=1e-04) and math.isclose(hero_eights[1], 0.8, rel_tol=1e-04) and math.isclose(hero_eights[2], 0.8, rel_tol=1e-04):
-                        print("Found 0.8,0.8,0.8")
-                        break
+                    try:
+                        hero_eights = [ unpack('f', f)[0], unpack('f', f)[0], unpack('f', f)[0] ]
+                        #print("Value: ", hero_eights)
+                        #print("Close to 0.8? " , math.isclose(hero_eights[0], 0.8, rel_tol=1e-04))
+                        if math.isclose(hero_eights[0], 0.8, rel_tol=1e-04) and math.isclose(hero_eights[1], 0.8, rel_tol=1e-04) and math.isclose(hero_eights[2], 0.8, rel_tol=1e-04):
+                            print("Found 0.8,0.8,0.8")
+                            break
 
-                    # We only want to move up one!
-                    f.seek(-4*2, 1)
+                        # We only want to move up one!
+                        f.seek(-4*2, 1)
+                    except struct.error as err:
+                        exit_piece_early = True
+                        print("Could not find hero eights, reached end of file.")
+                        break
+                        
+                if exit_piece_early == True:
+                    break
 
                 # Revert back to our original position
                 f.seek(-(4*5), 1) 
