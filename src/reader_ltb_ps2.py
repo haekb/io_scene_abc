@@ -35,6 +35,14 @@ class VIFCommand(object):
         self.variable = unpack('B', f)[0]
         self.code = unpack('B', f)[0]
 
+class EndCommand(object):
+    def __init__(self):
+        self.code = 0
+
+    def read(self, f):
+        f.seek(4 * 3, 1)
+        self.code = unpack('i', f)[0]
+
 class LocalVertex(object):
     def __init__(self):
         self.id = 0
@@ -172,7 +180,6 @@ class VertexList(object):
     # End of Generate Faces
 
     def find_in_list(self, merge_string):
-
         #print("Is %s in our list? " % merge_string)
         for i in range( len(self.list) ):
             if merge_string == self.list[i].merge_string:
@@ -551,17 +558,23 @@ class PS2LTBModelReader(object):
                     size_start = f.tell()
 
                     # For Each MeshSet
-                    while running_mesh_data_count < mesh_data_count:
+                    #while running_mesh_data_count < mesh_set_count:
+                    while True:
+                        print("Mesh Set %d" % mesh_set_index)
                         print("Running Count / Total : %d/%d" % (running_mesh_data_count, mesh_data_count) )
                         data_count = int.from_bytes(unpack('c', f)[0], 'little')
 
                         # Commonly 0, but occasionally 128. Rarely another value...
                         unknown_flag = int.from_bytes(unpack('c', f)[0], 'little')
 
+                        print("Data Count / Unknown Flag %d/%d" % (data_count, unknown_flag) )
+
+
                         # Skip past the unknown short
                         f.seek(2, 1)
                         # Skip past 3 unknown floats (they're sometimes not int :thinking:)
-                        f.seek(4 * 3, 1)
+                        print("Three Unknown Ints [%d/%d/%d]" % (unpack('I', f)[0],unpack('I', f)[0],unpack('I', f)[0]))
+                        #f.seek(4 * 3, 1)
 
                         # Mesh Set
 
@@ -608,28 +621,51 @@ class PS2LTBModelReader(object):
                             mesh_index += 1
                         # End For `i in range(data_count)`
 
+                        # This is a total hack, but it works..
+                        if unknown_flag == 128:
+                            print("Breaking from loop!")
+                            break
+
                         mesh_set_index += 1
                         running_mesh_data_count += data_count
                     # End While `running_mesh_data_count < mesh_data_count`
 
+                    #####################################################################
+                    # HACK: Sometimes there's a 4*4 bytes row before the end command
+                    # So let's look for our end command, and if it's not found skip 4*4!
+                    end_command_peek = [ unpack('i', f)[0], unpack('i', f)[0], unpack('i', f)[0], unpack('i', f)[0] ]
+
+                    # Well if it is our end command, then go back into the past so we can properly grab it
+                    # otherwise we just skipped the junk!
+                    if end_command_peek[0] == 0 and end_command_peek[1] == 0 and end_command_peek[2] == 0 and end_command_peek[3] == 352321536:
+                        print("Found End Command!")
+                        f.seek(-(4*4), 1)
+                    else:
+                        print("Skipped junk at the end!")
+
+                    #####################################################################
+
                     # 0x15 = call micro program
                     # This probably yells at the GS to read the last VIF packet
-                    end_command = VIFCommand()
+                    end_command = EndCommand()
                     # 4 Bytes
                     end_command.read(f)
+
+                    print("End Command ", end_command.__dict__)
 
                     size_end = f.tell()
 
                     # MeshSet size in bytes
                     size = size_end - size_start
+                    print("size (%d) = size_end (%d) - size_start (%d)" % (size, size_end, size_start))
 
                     # If we're bigger than 13kb then check for additional data
                     # 13kb seems to be about the limit per meshset batch. 
                     if size > 13000:
-                        print("Batch was over 13kb, checking for more data...")
+                        print("Batch was over 13kb, checking for more data, size: %d" % size)
                         check_for_more_data = True
                     else:
-                        print("No more data expected in this batch")
+                        print("No more data expected in this batch, size: %d" % size)
                         finished_lods = True
                         break
                 # End While `finished_lods == False`
