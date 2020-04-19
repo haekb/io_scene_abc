@@ -71,7 +71,8 @@ class VertexList(object):
         # List of Faces (generated)
         self.faces = []
     
-    def append(self, vertex, group_id, face_vertex):
+    def append(self, vertex, group_id, face_vertex, unknown_flag = False):
+
         # Create the "local vertex"
         # We store extra info so we can accurately merge duplicates while keeping the mesh set group ids
         local_vertex = LocalVertex()
@@ -128,8 +129,6 @@ class VertexList(object):
         print("------------------------------------")
         print("Generating Faces :) ")
         print("Groups: ",self.groups)
-
-
         
         #for group_id in self.groups:
         flip = False
@@ -418,7 +417,7 @@ class PS2LTBModelReader(object):
             # We can have multiple pieces!
             for piece_index in range( piece_count ):
                 print("------------------------------------")
-                print("Dawn of a new piece!")
+                print("New Piece!")
 
                 # Used when loading the actual mesh data
                 # If the previous chunk was 13kb+, 
@@ -432,7 +431,7 @@ class PS2LTBModelReader(object):
 
                 exit_piece_early = False
 
-                print ("Looking for hero eights...")
+                print ("HACK: Looking for Vector3 of 0.8f")
                 while True:
                     try:
                         hero_eights = [ unpack('f', f)[0], unpack('f', f)[0], unpack('f', f)[0] ]
@@ -446,7 +445,7 @@ class PS2LTBModelReader(object):
                         f.seek(-4*2, 1)
                     except struct.error as err:
                         exit_piece_early = True
-                        print("Could not find hero eights, reached end of file.")
+                        print("Could not find Vector3 of 0.8f, reached end of file.")
                         break
                         
                 if exit_piece_early == True:
@@ -458,7 +457,14 @@ class PS2LTBModelReader(object):
                 #########################################################################
 
                 # Piece
-                f.seek(4 * 18, 1)
+                f.seek(4 * 14, 1)
+
+                # Handy!
+                texture_index = unpack('i', f)[0]
+
+                # Skip past 3 unknowns
+                f.seek(4 * 3, 1)
+
                 mesh_type = unpack('i', f)[0]
                 # End Piece
 
@@ -487,6 +493,7 @@ class PS2LTBModelReader(object):
                 # Haven't mapped out pieces yet...
                 piece_object = Piece()
                 piece_object.name = "Piece %d" % piece_index
+                piece_object.material_index = texture_index
 
                 print("Piece %d " % piece_index)
 
@@ -553,15 +560,18 @@ class PS2LTBModelReader(object):
 
                     # End LOD
 
-                    running_mesh_data_count = 0
+                    running_mesh_set_count = 0
 
                     size_start = f.tell()
 
                     # For Each MeshSet
-                    #while running_mesh_data_count < mesh_set_count:
+
+                    # FIXME: This should be correct but it seems to be missing some sets.
+                    # Oddly secure to just check for the unknown flag being 128. :thinking:
+                    #while running_mesh_set_count < mesh_set_count:
                     while True:
                         print("Mesh Set %d" % mesh_set_index)
-                        print("Running Count / Total : %d/%d" % (running_mesh_data_count, mesh_data_count) )
+                        print("Running Count / Total : %d/%d" % (running_mesh_set_count, mesh_set_count) )
                         data_count = int.from_bytes(unpack('c', f)[0], 'little')
 
                         # Commonly 0, but occasionally 128. Rarely another value...
@@ -616,8 +626,14 @@ class PS2LTBModelReader(object):
                             vertex.location = vertex_data
                             vertex.normal = normal_data
 
+                            # Not sure what this is about, but since 128 blocks
+                            # seem to cause the exploding face problem, maybe it affects generation?
+                            flag = False
+                            if unknown_flag == 128:
+                                flag = True
+
                             # Local set list
-                            vertex_list.append(vertex, mesh_set_index, face_vertex)
+                            vertex_list.append(vertex, mesh_set_index, face_vertex, flag)
 
                             mesh_index += 1
                         # End For `i in range(data_count)`
@@ -628,7 +644,7 @@ class PS2LTBModelReader(object):
                             break
 
                         mesh_set_index += 1
-                        running_mesh_data_count += data_count
+                        running_mesh_set_count += 1
                     # End While `running_mesh_data_count < mesh_data_count`
 
                     #####################################################################
