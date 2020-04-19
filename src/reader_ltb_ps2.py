@@ -156,9 +156,9 @@ class VertexList(object):
                 #print("Flipped? ",flip)
 
                 if flip:
-                    face.vertices = [ grouped_faces[i - 1].face_vertex, grouped_faces[i - 2].face_vertex, grouped_faces[i].face_vertex ]
+                    face.vertices = [ grouped_faces[i].face_vertex, grouped_faces[i - 1].face_vertex, grouped_faces[i - 2].face_vertex ]
                 else:
-                    face.vertices = [ grouped_faces[i - 2].face_vertex, grouped_faces[i - 1].face_vertex, grouped_faces[i].face_vertex ]
+                    face.vertices = [ grouped_faces[i].face_vertex, grouped_faces[i - 2].face_vertex, grouped_faces[i - 1].face_vertex ]
 
                 faces.append(face)
                 flip = not flip
@@ -608,6 +608,7 @@ class PS2LTBModelReader(object):
                             mesh_index += 1
                         # End For `i in range(data_count)`
 
+                        mesh_set_index += 1
                         running_mesh_data_count += data_count
                     # End While `running_mesh_data_count < mesh_data_count`
 
