@@ -602,7 +602,8 @@ class PS2LTBModelReader(object):
                             normal_padding = unpack('f', f)[0]
 
                             uv_data = Vector()
-                            uv_data.xy = unpack('2f', f)[0]
+                            uv_data.x = unpack('f', f)[0]
+                            uv_data.y = unpack('f', f)[0]
 
                             vertex_index = unpack('f', f)[0]
                             unknown_padding = unpack('f', f)[0]
