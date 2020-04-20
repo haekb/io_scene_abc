@@ -292,11 +292,19 @@ class PS2LTBModelReader(object):
     def _read_node(self, f):
         node = Node()
         node.name = self._read_string(f)
-        node.index = unpack('H', f)[0]
-        node.flags = unpack('b', f)[0]
+        #node.index = unpack('H', f)[0]
+        #node.flags = unpack('H', f)[0]
         node.bind_matrix = self._read_matrix(f)
-        node.inverse_bind_matrix = node.bind_matrix.inverted()
+        #node.inverse_bind_matrix = node.bind_matrix.inverted()
+        f.seek(4, 1) 
         node.child_count = unpack('I', f)[0]
+        node.index = unpack('I', f)[0]
+
+        # I guess this is 0?
+        if node.index == 65536:
+            node.index = 0
+
+        #f.seek(4, 1)
         return node
 
     def _read_transform(self, f):
@@ -704,6 +712,12 @@ class PS2LTBModelReader(object):
 
             print("Final verticies ", len(lod.vertices))
             print("Final faces ", len(lod.faces))
+
+            # Handle Nodes!
+            f.seek(node_offset)
+
+            model.nodes = [self._read_node(f) for _ in range(node_count)]
+            build_undirected_tree(model.nodes)
 
             # section_name = self._read_string(f)
             # next_section_offset = unpack('i', f)[0]

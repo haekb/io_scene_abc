@@ -15,6 +15,10 @@ typedef unsigned char		uint8;
 //typedef unsigned short int	uint16;
 //typedef unsigned int		uint32;
 
+struct Vector4 {
+    float x,y,z,w;
+};
+
 struct Vector3 {
     float x,y,z;
 };
@@ -154,7 +158,9 @@ struct Piece {
     float SpecularPower;
     float SpecularScale;
     float LODWeight;
-    float unkFloatyPadding[12];
+    float unkFloatyPadding[9];
+    uint32 TextureIndex; // Maybe?
+    uint32 Unknown[2];
     int Four;
     int MeshType; // Basically confirmed
 };
@@ -162,15 +168,29 @@ struct Piece {
 struct Node {
     uint16 NameLength;
     char   Name[NameLength];
-    uint16 Index;
-    uint16 UnknownPadding;
-    Vector3 Matrix[4];
+    //uint16 Index;
+    //ubyte flag;    
+//uint16 UnknownPadding;
+    Vector4 Matrix[4];
+    short unk1;
+    short unk2;
     uint32 ChildCount;
-    uint32 UnknownPadding2[5];
+    uint32 Unk; // Maybe n levels deep
 };
 
 struct NodeOther {
     uint32 WeightSetCount;
+
+};
+
+struct NodeWeight {
+
+};
+
+struct WeightSet {
+    uint32 Unk;
+    uint32 NodeCount;
+    float Weights[NodeCount];
 };
 
 // Unknown data at the end of a mesh set..only sometimes though.
@@ -185,6 +205,40 @@ struct MeshSetExtended
 struct EndSignal {
     uint32 Padding[3];
     CommandSignal signal;
+};
+//440
+
+struct ExtraVertNorm {
+    Vector3 VertexData;
+    float VertexPadding;
+    Vector3 NormalData;
+    float NormalPadding;
+};
+
+struct RandomOne {
+    uint32 One;
+};
+
+struct VertexWeights {
+    uint32 unk1;
+    uint32 zero;
+    uint32 unk2;
+};
+
+struct ExtraFaceData {
+    uint32 Unk;
+};
+
+struct TheUnknown {
+    short unk[2];
+    // 525 = Floats
+    //float whatevesfloaty[228];
+    //uint32 one;
+};
+
+struct HeroEights {
+    uint32 Ignore;
+    Vector3 Heroes;
 };
 
 //Section section;
@@ -222,11 +276,61 @@ local uchar UnpackVIFCommand = 0;
 local uint32 EndSignalZero[3] = { 0, 0, 0 };
 local uint32 EndSignalData = 0;
 
+local int breakFromPieces = 0;
+local float heroEight1 = 0.0f;
+local float heroEight2 = 0.0f;
+local float heroEight3 = 0.0f;
+
+local int test = 0;
+
 // Okay, let's loop through the pieces
 for(i = 0; i < pieceInfo.PieceCount; i++)
 {
     // Reset some vars
     checkForMoreData = 0;
+    test= 0;
+
+    // HACK
+    // Check for Vector3 of 0.8's
+    // This is constant all the pieces
+/*
+    while(true)
+    {
+        //HeroEights eights;
+        heroEight1 = 0.0f;
+        heroEight2 = 0.0f;
+        heroEight3 = 0.0f;
+    
+        // Skip first item in Piece
+        peekAmount = 4;
+
+        heroEight1 = ReadFloat(FTell() + peekAmount);
+        heroEight2 = ReadFloat(FTell() + peekAmount + 4);
+        heroEight3 = ReadFloat(FTell() + peekAmount + 8);
+
+        if (heroEight1 == 0.8f && heroEight2 == 0.8f && heroEight3 == 0.8f)
+        {
+            break;
+        }
+
+        // Slowly crawl us up one int at a time!
+        FSeek( FTell() + 4 );
+
+        if (FTell() + (4*4) >= FileSize())
+        {
+            breakFromPieces = 1;
+            break;
+        }
+    }
+*/
+    //FSeek( FTell() - 4 );
+
+    if (breakFromPieces)
+    {
+        break;
+    }
+
+    //
 
     Piece piece;
 
@@ -237,6 +341,7 @@ for(i = 0; i < pieceInfo.PieceCount; i++)
 
     LODStart lodStart;
 
+    // Per LOD?
     while (true)
     {
         // If they reached about 13kb of data
@@ -291,6 +396,7 @@ for(i = 0; i < pieceInfo.PieceCount; i++)
             }
     
             meshSetIndex++;
+            test += Data.DataCount;
         }
         
         // Check ahead for the end signal, sometimes there's an extra 4*4 row of floats.
@@ -314,6 +420,7 @@ for(i = 0; i < pieceInfo.PieceCount; i++)
         // Calculate batch size
         setSize = setEnd - setStart;
 
+        Printf("size (%d) = size_end (%d) - size_start (%d)\n", setSize, setEnd, setStart);
         Printf("Set Size is %d\n", setSize);
         
         // Monolith chose around 13kb as the batch size limit
@@ -325,11 +432,28 @@ for(i = 0; i < pieceInfo.PieceCount; i++)
         } 
         else // If we're not at that cap, then we can safely assume there's no more batched data here.
         {
+            /*
+            if (piece.MeshType == 5) 
+            {
+                Printf("Test is %d", test);
+                TheUnknown unk;
+                ExtraFaceData extraFaceData[info.TriangleCount];
+                ExtraVertNorm extraMeshData[info.VertexCount];
+                //RandomOne filler[12];
+                RandomOne one;
+                VertexWeights weights[info.WeightCount];
+            }
+            */
             break;
         }
+
+        
     }
 }
 
 FSeek(hdr.NodeOffset);
 Node node[info.NodeCount] <optimize=false>;
+
+// Actually Anim WeightSet, see dog_action.lta / ltb
 NodeOther nodeOther;
+WeightSet weights[nodeOther.WeightSetCount];
