@@ -26,6 +26,10 @@ struct TexCoord {
     float u,v;
 };
 
+struct Quat {
+    float x,y,z,w;
+};
+
 // I'm bad at names, but this must mean something for the PS2.
 // VIFCodes: https://gtamods.com/wiki/PS2_Native_Geometry
 //
@@ -172,10 +176,12 @@ struct Node {
     //ubyte flag;    
 //uint16 UnknownPadding;
     Vector4 Matrix[4];
-    short unk1;
-    short unk2;
+    ubyte unkB1;
+    ubyte unkB2;
+    ushort unk2;
     uint32 ChildCount;
-    uint32 Unk; // Maybe n levels deep
+    short Index; // 
+    short Unk; // Maybe flag?
 };
 
 struct NodeOther {
@@ -187,8 +193,9 @@ struct NodeWeight {
 
 };
 
+// Currently only Anim-Weightset?
 struct WeightSet {
-    uint32 Unk;
+    uint32 ID;
     uint32 NodeCount;
     float Weights[NodeCount];
 };
@@ -241,6 +248,85 @@ struct HeroEights {
     Vector3 Heroes;
 };
 
+struct Socket {
+/*
+        socket = Socket()
+        socket.node_index = unpack('I', f)[0]
+        socket.name = self._read_string(f)
+        socket.rotation = self._read_quaternion(f)
+        socket.location = self._read_vector(f)
+*/
+    uint32 unk1;
+    Quat rotation;
+    Vector3 location;
+    uint32 padding;
+    uint32 nodeIndex;
+    uint32 unk2;
+    uint32 unk3;
+};
+
+
+
+struct ChildModel {
+    short stringLength;
+    char Name[stringLength];
+};
+struct ChildModelHeader {
+    uint32 Count;
+};
+
+struct AnimationHeader {
+    uint32 Count;
+};
+
+struct KeyFrame {
+    ushort Time;
+    uint32 Padding;
+};
+
+
+
+struct CompressedFrame {
+    short Padding;
+    short Location[3]; 
+    short Rotation[4]; 
+};
+
+struct CVector3 {
+    short x,y,z;
+};
+
+struct CQuat {
+    short x,y,z,w;
+};
+
+
+struct NodeKeyframe (uint32 Count)
+{
+    uint32 StartMarker;
+    
+    //int16 unk[34];
+    // This should be per node...
+    CompressedFrame Frames[KeyFrameCount];//[nodeCount];
+};
+
+// Around 543 long
+struct Animation (uint32 nodeCount) {
+    Vector3 Dims;
+    Vector3 Translation;
+    uint32 Unk;
+    uint32 InterpolationTime;
+    uint32 KeyFrameCount;
+    KeyFrame KeyFrames[KeyFrameCount];
+    
+    // Maybe they're just compressed?
+    CVector3 Locations[KeyFrameCount];
+    CQuat Rotations[KeyFrameCount];
+
+    //short test;
+    //NodeKeyframe Nodes(KeyFrameCount)[nodeCount];
+};//5052
+
 //Section section;
 Header hdr;
 ModelInfo info;
@@ -283,6 +369,8 @@ local float heroEight3 = 0.0f;
 
 local int test = 0;
 
+// Commented out so I can work on non-geom stuff
+/*
 // Okay, let's loop through the pieces
 for(i = 0; i < pieceInfo.PieceCount; i++)
 {
@@ -293,7 +381,7 @@ for(i = 0; i < pieceInfo.PieceCount; i++)
     // HACK
     // Check for Vector3 of 0.8's
     // This is constant all the pieces
-/*
+
     while(true)
     {
         //HeroEights eights;
@@ -322,7 +410,7 @@ for(i = 0; i < pieceInfo.PieceCount; i++)
             break;
         }
     }
-*/
+
     //FSeek( FTell() - 4 );
 
     if (breakFromPieces)
@@ -432,24 +520,25 @@ for(i = 0; i < pieceInfo.PieceCount; i++)
         } 
         else // If we're not at that cap, then we can safely assume there's no more batched data here.
         {
-            /*
+            
             if (piece.MeshType == 5) 
             {
                 Printf("Test is %d", test);
-                TheUnknown unk;
-                ExtraFaceData extraFaceData[info.TriangleCount];
-                ExtraVertNorm extraMeshData[info.VertexCount];
-                //RandomOne filler[12];
-                RandomOne one;
-                VertexWeights weights[info.WeightCount];
+                //TheUnknown unk;
+                //ExtraFaceData extraFaceData[info.TriangleCount];
+                //ExtraVertNorm extraMeshData[info.VertexCount];
+                ////RandomOne filler[12];
+                //RandomOne one;
+                //VertexWeights weights[info.WeightCount];
             }
-            */
+            
             break;
         }
 
         
     }
 }
+*/
 
 FSeek(hdr.NodeOffset);
 Node node[info.NodeCount] <optimize=false>;
@@ -457,3 +546,19 @@ Node node[info.NodeCount] <optimize=false>;
 // Actually Anim WeightSet, see dog_action.lta / ltb
 NodeOther nodeOther;
 WeightSet weights[nodeOther.WeightSetCount];
+
+FSeek(hdr.SubModelOffset);
+ChildModelHeader childModelHdr;
+// For some reason it's off by one
+ChildModel ChildModels[info.ChildModelCount - 1] <optimize=false>;
+
+FSeek(hdr.AnimationOffset);
+AnimationHeader animationHdr;
+
+Animation animation(info.NodeCount)[info.AnimationCount] <optimize=false>;
+
+
+
+FSeek(hdr.SocketOffset);
+Socket sockets[info.SocketCount] <optimize=false>;
+ 

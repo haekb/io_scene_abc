@@ -298,11 +298,14 @@ class PS2LTBModelReader(object):
         #node.inverse_bind_matrix = node.bind_matrix.inverted()
         f.seek(4, 1) 
         node.child_count = unpack('I', f)[0]
-        node.index = unpack('I', f)[0]
+        node.index = unpack('H', f)[0]
+        # Not confirmed, but likely!
+        #node.flag = unpack('H', f)[0]
+        f.seek(2, 1)
 
         # I guess this is 0?
-        if node.index == 65536:
-            node.index = 0
+        #if node.index == 65536:
+        #    node.index = 0
 
         #f.seek(4, 1)
         return node
@@ -342,10 +345,16 @@ class PS2LTBModelReader(object):
 
     def _read_socket(self, f):
         socket = Socket()
-        socket.node_index = unpack('I', f)[0]
-        socket.name = self._read_string(f)
+        # We don't know all the values here, so skip the ones we can't use yet.
+        # Refer to the bt file for exact specs
+        f.seek(4, 1)
+        #socket.node_index = unpack('I', f)[0]
+        #socket.name = self._read_string(f)
         socket.rotation = self._read_quaternion(f)
         socket.location = self._read_vector(f)
+        f.seek(4, 1)
+        socket.node_index = unpack('I', f)[0]
+        f.seek(4 * 2, 1)
         return socket
 
     def _read_anim_binding(self, f):
@@ -718,6 +727,10 @@ class PS2LTBModelReader(object):
 
             model.nodes = [self._read_node(f) for _ in range(node_count)]
             build_undirected_tree(model.nodes)
+
+            # Handle Sockets!
+            f.seek(socket_offset)
+            model.sockets = [self._read_socket(f) for _ in range(socket_count)]
 
             # section_name = self._read_string(f)
             # next_section_offset = unpack('i', f)[0]
