@@ -131,8 +131,9 @@ class VertexList(object):
         print("Groups: ",self.groups)
         
         #for group_id in self.groups:
-        flip = False
+        
         for j in range( len(self.groups) ):
+            flip = False
             group_id = self.groups[j]
             #print("Group ID: ", group_id)
 
@@ -162,10 +163,16 @@ class VertexList(object):
                 face = Face()
                 #print("Flipped? ",flip)
 
-                if flip:
-                    face.vertices = [ grouped_faces[i].face_vertex, grouped_faces[i - 1].face_vertex, grouped_faces[i - 2].face_vertex ]
+                if grouped_faces[i].face_vertex.reversed:
+                    if flip:
+                        face.vertices = [ grouped_faces[i - 1].face_vertex, grouped_faces[i].face_vertex, grouped_faces[i - 2].face_vertex ]
+                    else:
+                        face.vertices = [ grouped_faces[i - 2].face_vertex, grouped_faces[i].face_vertex, grouped_faces[i - 1].face_vertex ]
                 else:
-                    face.vertices = [ grouped_faces[i].face_vertex, grouped_faces[i - 2].face_vertex, grouped_faces[i - 1].face_vertex ]
+                    if flip:
+                        face.vertices = [ grouped_faces[i].face_vertex, grouped_faces[i - 1].face_vertex, grouped_faces[i - 2].face_vertex ]
+                    else:
+                        face.vertices = [ grouped_faces[i].face_vertex, grouped_faces[i - 2].face_vertex, grouped_faces[i - 1].face_vertex ]
 
                 faces.append(face)
                 flip = not flip
@@ -375,6 +382,8 @@ class PS2LTBModelReader(object):
     def from_file(self, path):
         model = Model()
         model.name = os.path.splitext(os.path.basename(path))[0]
+        all_unk2 = []
+
         with open(path, 'rb') as f:
 
             # Header
@@ -430,6 +439,7 @@ class PS2LTBModelReader(object):
             # Piece Header
             f.seek(4 * 3, 1)
             # End Piece Header
+
 
             # We can have multiple pieces!
             for piece_index in range( piece_count ):
@@ -583,6 +593,7 @@ class PS2LTBModelReader(object):
 
                     # For Each MeshSet
 
+
                     # FIXME: This should be correct but it seems to be missing some sets.
                     # Oddly secure to just check for the unknown flag being 128. :thinking:
                     #while running_mesh_set_count < mesh_set_count:
@@ -600,8 +611,15 @@ class PS2LTBModelReader(object):
                         # Skip past the unknown short
                         f.seek(2, 1)
                         # Skip past 3 unknown floats (they're sometimes not int :thinking:)
-                        print("Three Unknown Ints [%d/%d/%d]" % (unpack('I', f)[0],unpack('I', f)[0],unpack('I', f)[0]))
+                        #print("Three Unknown Ints [%d/%d/%d]" % (unpack('I', f)[0],unpack('I', f)[0],unpack('I', f)[0]))
                         #f.seek(4 * 3, 1)
+                        unknown_val_1 = unpack('I', f)[0]
+                        face_winding_order = unpack('I', f)[0]
+                        unknown_val_2 = unpack('I', f)[0]
+
+                        all_unk2.append(nUnk2)
+                        all_unk2 = list(set(all_unk2))
+
 
                         # Mesh Set
 
@@ -639,6 +657,11 @@ class PS2LTBModelReader(object):
                             face_vertex = FaceVertex()
                             face_vertex.texcoord = uv_data
                             face_vertex.vertex_index = mesh_index
+
+                            # 0x412 and 0x8412
+                            # Here we check to see if it's 0x8412, 
+                            # and if it is our FaceBuilder2000 will reverse the winding order when building the face
+                            face_vertex.reversed = face_winding_order == 33810
 
                             vertex.location = vertex_data
                             vertex.normal = normal_data
@@ -722,6 +745,7 @@ class PS2LTBModelReader(object):
             print("Final verticies ", len(lod.vertices))
             print("Final faces ", len(lod.faces))
 
+
             # Handle Nodes!
             f.seek(node_offset)
 
@@ -769,4 +793,6 @@ class PS2LTBModelReader(object):
             # elif section_name == 'AnimBindings':
             #     anim_binding_count = unpack('I', f)[0]
             #     model.anim_bindings = [self._read_anim_binding(f) for _ in range(anim_binding_count)]
+        print ("All the unk 2!", all_unk2)
+
         return model

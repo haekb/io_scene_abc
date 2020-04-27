@@ -56,6 +56,7 @@ class FaceVertex(object):
     def __init__(self):
         self.texcoord = Vector()
         self.vertex_index = 0
+        self.reversed = False
 
 
 class Face(object):
