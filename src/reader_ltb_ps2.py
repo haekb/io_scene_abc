@@ -17,6 +17,21 @@ import copy
 # See the 010 Editor Template file for the latest info on the format.
 #########################################################################################
 
+# Some constant values to make things slightly more readable:
+
+# Required checks
+# PS2 LTB
+REQUESTED_FILE_TYPE = 2
+# Version of the LTB
+REQUESTED_VERSION = 16
+
+# Model Types
+MT_RIGID = 4
+MT_SKELETAL = 5
+MT_VERTEX_ANIMATED = 6
+
+
+
 # PS2 VIF Command, not entirely sure on all the codes but here's a few..
 # VIFCodes: https://gtamods.com/wiki/PS2_Native_Geometry
 #
@@ -118,34 +133,21 @@ class VertexList(object):
 
         
 
+    # Loop through all our grouped faces and generate faces based off the vertex_index
     def generate_faces(self):
-        # Loop through every face vert
-        # Then loop through every group
-        # Or maybe opposite...
-        # 
-        #
         faces = []
 
         print("------------------------------------")
         print("Generating Faces :) ")
         print("Groups: ",self.groups)
         
-        #for group_id in self.groups:
-        
         for j in range( len(self.groups) ):
+            # Generate the faces with alternating order
             flip = False
             group_id = self.groups[j]
-            #print("Group ID: ", group_id)
-
-            # TEST
-            #if group_id != 3:
-                #continue
-
             grouped_faces = []
 
-
             for i in range( len(self.face_verts) ):
-                
                 face_vert = self.face_verts[i]
 
                 if face_vert.group_id != group_id:
@@ -154,14 +156,11 @@ class VertexList(object):
                 grouped_faces.append(face_vert)
             # End Face Verts
             
-            #print("Grouped Faces: ", grouped_faces)
-
             for i in range( len(grouped_faces) ):
                 if i < 2:
                     continue
 
                 face = Face()
-                #print("Flipped? ",flip)
 
                 if grouped_faces[i].face_vertex.reversed:
                     if flip:
@@ -185,14 +184,14 @@ class VertexList(object):
         self.faces = faces
     # End of Generate Faces
 
+    # Find the requested merge_string in a list
+    # Return the position if true,
+    # Return -1 if false.
     def find_in_list(self, merge_string):
-        #print("Is %s in our list? " % merge_string)
         for i in range( len(self.list) ):
             if merge_string == self.list[i].merge_string:
-                #print("Yes!")
                 return i
 
-        #print("No!")
         return -1
 
     def generate_merge_string(self, vector):
@@ -209,21 +208,6 @@ class VertexList(object):
 
     def get_face_list(self):
         return self.faces
-
-                        # # Okay if we're a triangle, then save the current face and pop the first face vert off.
-                        # if len( face.vertices ) == 3:
-
-                        #     # print("Appending Face", face.__dict__)
-                        #     # Save our current face!
-
-                        #     # FIXME: Uncomment when face merging is done
-                        #     lod.faces.append(face)
-
-                        #     # We need to deep copy to prevent modifying the face already in the list
-                        #     # This took me hours to figure out ugh.
-                        #     face = copy.deepcopy(face)
-                        #     face.vertices.pop(0)
-                        #     # End If
 # End Class
 
 class PS2LTBModelReader(object):
@@ -299,22 +283,13 @@ class PS2LTBModelReader(object):
     def _read_node(self, f):
         node = Node()
         node.name = self._read_string(f)
-        #node.index = unpack('H', f)[0]
-        #node.flags = unpack('H', f)[0]
         node.bind_matrix = self._read_matrix(f)
-        #node.inverse_bind_matrix = node.bind_matrix.inverted()
         f.seek(4, 1) 
         node.child_count = unpack('I', f)[0]
         node.index = unpack('H', f)[0]
         # Not confirmed, but likely!
         #node.flag = unpack('H', f)[0]
         f.seek(2, 1)
-
-        # I guess this is 0?
-        #if node.index == 65536:
-        #    node.index = 0
-
-        #f.seek(4, 1)
         return node
 
     def _read_transform(self, f):
@@ -355,8 +330,6 @@ class PS2LTBModelReader(object):
         # We don't know all the values here, so skip the ones we can't use yet.
         # Refer to the bt file for exact specs
         f.seek(4, 1)
-        #socket.node_index = unpack('I', f)[0]
-        #socket.name = self._read_string(f)
         socket.rotation = self._read_quaternion(f)
         socket.location = self._read_vector(f)
         f.seek(4, 1)
@@ -382,7 +355,6 @@ class PS2LTBModelReader(object):
     def from_file(self, path):
         model = Model()
         model.name = os.path.splitext(os.path.basename(path))[0]
-        all_unk2 = []
 
         with open(path, 'rb') as f:
 
@@ -396,11 +368,13 @@ class PS2LTBModelReader(object):
 
             # TODO: This should be done before ModelReader, 
             # so we can split off to ltb (pc) and ltb (ps2) as needed.
-            if self._file_type is not 2:
-                raise Exception('LTB Importer only supports PS2 LTB files.')
+            if self._file_type is not REQUESTED_FILE_TYPE:
+                message = "LTB Importer only supports PS2 LTB files."
+                raise Exception(message)
                 
-            if self._version is not 16:
-                raise Exception('LTB Importer only supports version 16.')
+            if self._version is not REQUESTED_VERSION:
+                message = "LTB Importer only supports version %d." % REQUESTED_VERSION
+                raise Exception(message)
 
             # Skip past the 3 unknown ints
             f.seek(12, 1)
@@ -617,12 +591,10 @@ class PS2LTBModelReader(object):
                         face_winding_order = unpack('I', f)[0]
                         unknown_val_2 = unpack('I', f)[0]
 
-                        all_unk2.append(nUnk2)
-                        all_unk2 = list(set(all_unk2))
 
 
                         # Mesh Set
-
+                        triangle_counter = 0
                         for i in range(data_count):
                             print("Data i/count", i, data_count)
 
@@ -670,8 +642,9 @@ class PS2LTBModelReader(object):
                             # seem to cause the exploding face problem, maybe it affects generation?
                             flag = False
                             if unknown_flag == 128:
+                                triangle_counter += 1
                                 flag = True
-
+ 
                             # Local set list
                             vertex_list.append(vertex, mesh_set_index, face_vertex, flag)
 
@@ -793,6 +766,5 @@ class PS2LTBModelReader(object):
             # elif section_name == 'AnimBindings':
             #     anim_binding_count = unpack('I', f)[0]
             #     model.anim_bindings = [self._read_anim_binding(f) for _ in range(anim_binding_count)]
-        print ("All the unk 2!", all_unk2)
 
         return model

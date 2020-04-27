@@ -7,6 +7,7 @@ from math import pi
 from mathutils import Vector, Matrix, Quaternion, Euler
 from bpy.props import StringProperty, BoolProperty, FloatProperty
 from .dtx import DTX
+from .utils import show_message_box
 
 # Format imports
 from .reader_abc_pc import ABCModelReader
@@ -69,7 +70,7 @@ def import_model(model, options):
 
         if bone.parent is not None:
             bone.use_connect = bone.parent.tail == bone.head
-            print(bone.use_connect, node.is_removable)
+            #print(bone.use_connect, node.is_removable)
 
         '''
         Get the forward, left, and up vectors of the bone (used later for determining the roll).
@@ -628,7 +629,12 @@ class ImportOperatorLTB(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 
     def execute(self, context):
         # Load the model
-        model = PS2LTBModelReader().from_file(self.filepath)
+        try:
+            model = PS2LTBModelReader().from_file(self.filepath)
+        except Exception as e:
+            show_message_box(str(e), "Read Error", 'ERROR')
+            return {'CANCELLED'}
+        
         model.name = os.path.splitext(os.path.basename(self.filepath))[0]
         image = None
         if self.should_import_textures:
@@ -647,7 +653,12 @@ class ImportOperatorLTB(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
         options.should_merge_pieces = self.should_merge_pieces
         options.should_clear_scene = self.should_clear_scene
         options.image = image
-        import_model(model, options)
+        try:
+            import_model(model, options)
+        except Exception as e:
+            show_message_box(str(e), "Import Error", 'ERROR')
+            return {'CANCELLED'}
+
         return {'FINISHED'}
 
     @staticmethod

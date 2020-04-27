@@ -111,7 +111,7 @@ struct MeshSet
     uchar UnknownFlag; // If 128, then it's the last Set!
     short Padding;
     uint32 Unknown1;
-    uint32 Unknown2;
+    uint32 WindingOrder;
     uint32 Unknown3;
     MeshData Data[DataCount] <optimize=false>;
 };
@@ -234,6 +234,7 @@ struct VertexWeights {
 
 struct ExtraFaceData {
     uint32 Unk;
+    short sUnk;
 };
 
 struct TheUnknown {
@@ -370,7 +371,7 @@ local float heroEight3 = 0.0f;
 local int test = 0;
 
 // Commented out so I can work on non-geom stuff
-/*
+
 // Okay, let's loop through the pieces
 for(i = 0; i < pieceInfo.PieceCount; i++)
 {
@@ -384,6 +385,8 @@ for(i = 0; i < pieceInfo.PieceCount; i++)
 
     while(true)
     {
+        // DEBUG: Testing weights
+        break;
         //HeroEights eights;
         heroEight1 = 0.0f;
         heroEight2 = 0.0f;
@@ -525,8 +528,8 @@ for(i = 0; i < pieceInfo.PieceCount; i++)
             {
                 Printf("Test is %d", test);
                 //TheUnknown unk;
-                //ExtraFaceData extraFaceData[info.TriangleCount];
-                //ExtraVertNorm extraMeshData[info.VertexCount];
+                ExtraFaceData extraFaceData[info.WeightCount];//[151];//[info.TriangleCount]; //151
+                ExtraVertNorm extraMeshData[info.VertexCount];
                 ////RandomOne filler[12];
                 //RandomOne one;
                 //VertexWeights weights[info.WeightCount];
@@ -538,7 +541,7 @@ for(i = 0; i < pieceInfo.PieceCount; i++)
         
     }
 }
-*/
+
 
 FSeek(hdr.NodeOffset);
 Node node[info.NodeCount] <optimize=false>;
