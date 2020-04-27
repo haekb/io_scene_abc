@@ -30,15 +30,23 @@ MT_RIGID = 4
 MT_SKELETAL = 5
 MT_VERTEX_ANIMATED = 6
 
+# Winding orders
+WO_NORMAL = 0x412
+WO_REVERSED = 0x8412
 
+# Vif commands
+# From various sources:
+# https://gtamods.com/wiki/PS2_Native_Geometry
+# https://github.com/PCSX2/pcsx2/blob/master/pcsx2/Vif_Codes.cpp
+VIF_FLUSH = 0x11
+VIF_MSCALF = 0x15
+VIF_DIRECT = 0x50 # This is not in the "CMD" spot, so it might just be an application specific data
+VIF_UNPACK = 0x6C
 
-# PS2 VIF Command, not entirely sure on all the codes but here's a few..
-# VIFCodes: https://gtamods.com/wiki/PS2_Native_Geometry
-#
-# 0x11 = Flush - wait for end of microprogram and GIF transfer
-# 0x15 = MSCALF - call micro program
-# 0x6C = Unpack? - unpack the following data and write to VU memory
-#
+FLOAT_COMPARE = 1e-04
+
+# PS2 VIF Command
+# Used to tell the ps2 what to do with the data I guess
 class VIFCommand(object):
     def __init__(self):
         self.constant = 0
@@ -438,7 +446,7 @@ class PS2LTBModelReader(object):
                         hero_eights = [ unpack('f', f)[0], unpack('f', f)[0], unpack('f', f)[0] ]
                         #print("Value: ", hero_eights)
                         #print("Close to 0.8? " , math.isclose(hero_eights[0], 0.8, rel_tol=1e-04))
-                        if math.isclose(hero_eights[0], 0.8, rel_tol=1e-04) and math.isclose(hero_eights[1], 0.8, rel_tol=1e-04) and math.isclose(hero_eights[2], 0.8, rel_tol=1e-04):
+                        if math.isclose(hero_eights[0], 0.8, rel_tol=FLOAT_COMPARE) and math.isclose(hero_eights[1], 0.8, rel_tol=FLOAT_COMPARE) and math.isclose(hero_eights[2], 0.8, rel_tol=FLOAT_COMPARE):
                             print("Found 0.8,0.8,0.8")
                             break
 
@@ -469,11 +477,11 @@ class PS2LTBModelReader(object):
                 mesh_type = unpack('i', f)[0]
                 # End Piece
 
-                if mesh_type is 4:
+                if mesh_type is MT_RIGID:
                     print("Rigid Mesh")
-                elif mesh_type is 5:
+                elif mesh_type is MT_SKELETAL:
                     print("Skeletal Mesh")
-                elif mesh_type is 6: # Haven't tested or found a VA mesh!
+                elif mesh_type is MT_VERTEX_ANIMATED: # Haven't tested or found a VA mesh!
                     print("Vertex Animated Mesh")
 
                 # LODs
@@ -485,7 +493,7 @@ class PS2LTBModelReader(object):
                 mesh_index = 0 # triangle_count + vertex_count
 
                 # There's two additional ints with skeletal meshes 
-                if mesh_type is 5:
+                if mesh_type is MT_SKELETAL:
                     f.seek( 4 * 2, 1)
 
                 lod_vertex_count = unpack('i', f)[0]
@@ -520,7 +528,7 @@ class PS2LTBModelReader(object):
                         f.seek(-(peek_amount + 4), 1)
 
                         # If it's not our magic info (Unpack Signal) then there's probably no more data here.
-                        if (vif_cmd.constant is not 0x50 or vif_cmd.code is not 0x6C):
+                        if (vif_cmd.constant is not VIF_DIRECT or vif_cmd.code is not VIF_UNPACK):
                             print("No more data found!")
                             finished_lods = True
                             break
@@ -633,7 +641,7 @@ class PS2LTBModelReader(object):
                             # 0x412 and 0x8412
                             # Here we check to see if it's 0x8412, 
                             # and if it is our FaceBuilder2000 will reverse the winding order when building the face
-                            face_vertex.reversed = face_winding_order == 33810
+                            face_vertex.reversed = face_winding_order == WO_REVERSED
 
                             vertex.location = vertex_data
                             vertex.normal = normal_data
