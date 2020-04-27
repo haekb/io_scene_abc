@@ -39,7 +39,7 @@ WO_REVERSED = 0x8412
 # https://gtamods.com/wiki/PS2_Native_Geometry
 # https://github.com/PCSX2/pcsx2/blob/master/pcsx2/Vif_Codes.cpp
 VIF_FLUSH = 0x11
-VIF_MSCALF = 0x15
+VIF_MSCALF = 0x15000000 # This one likes extra precision
 VIF_DIRECT = 0x50 # This is not in the "CMD" spot, so it might just be an application specific data
 VIF_UNPACK = 0x6C
 
@@ -580,14 +580,14 @@ class PS2LTBModelReader(object):
                     # Oddly secure to just check for the unknown flag being 128. :thinking:
                     #while running_mesh_set_count < mesh_set_count:
                     while True:
-                        print("Mesh Set %d" % mesh_set_index)
-                        print("Running Count / Total : %d/%d" % (running_mesh_set_count, mesh_set_count) )
+                        #print("Mesh Set %d" % mesh_set_index)
+                        #print("Running Count / Total : %d/%d" % (running_mesh_set_count, mesh_set_count) )
                         data_count = int.from_bytes(unpack('c', f)[0], 'little')
 
                         # Commonly 0, but occasionally 128. Rarely another value...
                         unknown_flag = int.from_bytes(unpack('c', f)[0], 'little')
 
-                        print("Data Count / Unknown Flag %d/%d" % (data_count, unknown_flag) )
+                        #print("Data Count / Unknown Flag %d/%d" % (data_count, unknown_flag) )
 
 
                         # Skip past the unknown short
@@ -604,7 +604,7 @@ class PS2LTBModelReader(object):
                         # Mesh Set
                         triangle_counter = 0
                         for i in range(data_count):
-                            print("Data i/count", i, data_count)
+                            #print("Data i/count", i, data_count)
 
                             # TODO: Determine why there's sometimes just an empty line 
                             # For now we must look for the vertex_padding. It seems to ALWAYS be 1.0f
@@ -646,26 +646,21 @@ class PS2LTBModelReader(object):
                             vertex.location = vertex_data
                             vertex.normal = normal_data
 
-                            # Not sure what this is about, but since 128 blocks
-                            # seem to cause the exploding face problem, maybe it affects generation?
-                            flag = False
-                            if unknown_flag == 128:
-                                triangle_counter += 1
-                                flag = True
- 
                             # Local set list
                             vertex_list.append(vertex, mesh_set_index, face_vertex, flag)
 
                             mesh_index += 1
                         # End For `i in range(data_count)`
 
+                        mesh_set_index += 1
+                        running_mesh_set_count += 1
+
                         # This is a total hack, but it works..
                         if unknown_flag == 128:
                             print("Breaking from loop!")
                             break
 
-                        mesh_set_index += 1
-                        running_mesh_set_count += 1
+
                     # End While `running_mesh_data_count < mesh_data_count`
 
                     #####################################################################
@@ -675,7 +670,7 @@ class PS2LTBModelReader(object):
 
                     # Well if it is our end command, then go back into the past so we can properly grab it
                     # otherwise we just skipped the junk!
-                    if end_command_peek[0] == 0 and end_command_peek[1] == 0 and end_command_peek[2] == 0 and end_command_peek[3] == 352321536:
+                    if end_command_peek[0] == 0 and end_command_peek[1] == 0 and end_command_peek[2] == 0 and end_command_peek[3] == VIF_MSCALF:
                         print("Found End Command!")
                         f.seek(-(4*4), 1)
                     else:
