@@ -113,7 +113,7 @@ struct MeshSet
     uint32 Unknown1;
     uint32 WindingOrder;
     uint32 Unknown3;
-    MeshData Data[DataCount] <optimize=false>;
+    
 };
 
 // LOD Zone!
@@ -328,6 +328,7 @@ struct Animation (uint32 nodeCount) {
     //NodeKeyframe Nodes(KeyFrameCount)[nodeCount];
 };//5052
 
+// trhis is a test I'm testing without mouse control enabled
 //Section section;
 Header hdr;
 ModelInfo info;
@@ -338,6 +339,7 @@ FSeek(hdr.PieceOffset);
 PieceInfo pieceInfo;
 
 local int i = 0;
+local int j = 0;
 local int count = 0;
 local int meshSetIndex = 0;
 local uint32 meshSetCheck = 0;
@@ -368,6 +370,7 @@ local float heroEight1 = 0.0f;
 local float heroEight2 = 0.0f;
 local float heroEight3 = 0.0f;
 
+local float testFloat = 0.0f;
 local int test = 0;
 
 // Commented out so I can work on non-geom stuff
@@ -472,8 +475,21 @@ for(i = 0; i < pieceInfo.PieceCount; i++)
             {
                 FSkip(4*4);
             }
-    
+
+            test = 0;
             MeshSet Data <optimize=false>;
+            for (j = 0; j < Data.DataCount; j++)
+            {
+                testFloat = ReadFloat(FTell() + (4*3));
+                if (testFloat != 1.0f)
+                {
+                    FSeek(FTell() + (4*4));
+                }
+
+                MeshData meshData;
+            }            
+
+            //MeshSet Data <optimize=false>;
             count += Data.DataCount;
     
             if (count >= lod.MeshDataCount)
@@ -558,7 +574,7 @@ ChildModel ChildModels[info.ChildModelCount - 1] <optimize=false>;
 FSeek(hdr.AnimationOffset);
 AnimationHeader animationHdr;
 
-Animation animation(info.NodeCount)[info.AnimationCount] <optimize=false>;
+//Animation animation(info.NodeCount)[info.AnimationCount] <optimize=false>;
 
 
 
