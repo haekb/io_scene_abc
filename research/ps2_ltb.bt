@@ -121,7 +121,7 @@ struct MeshSet
 // After Piece and LODSkeletal, this is filled just before LODGlue!
 struct LODStart {
     uint32 VertexCount;
-    uint32 Unknown1;
+    uint32 WeightedNodesCount;
     // Moved these to LODGlue
     //uint32 Unknown2;
     //uint32 Unknown[6];
@@ -229,7 +229,7 @@ struct RandomOne {
 
 struct ExtraFaceData {
     uint32 Unk;
-    short sUnk;
+    //short sUnk;
 };
 
 struct TheUnknown {
@@ -385,6 +385,12 @@ local float heroEight3 = 0.0f;
 local float testFloat = 0.0f;
 local int test = 0;
 
+local int totalStuff = 0;
+
+local int testZero1 = 0;
+local int testZero2 = 0;
+local float testAfter = 0.0f;
+
 // Commented out so I can work on non-geom stuff
 
 // Okay, let's loop through the pieces
@@ -497,7 +503,7 @@ for(i = 0; i < pieceInfo.PieceCount; i++)
                 {
                     FSeek(FTell() + (4*4));
                 }
-
+                totalStuff += 1;
                 MeshData meshData;
             }            
 
@@ -554,10 +560,43 @@ for(i = 0; i < pieceInfo.PieceCount; i++)
             
             if (piece.MeshType == 5) 
             {
-                Printf("Test is %d", test);
+                
+                // Skip some unknown and unknown length values
+                // Seems to be at least 2 4-byte zeroes before the next part!
+                while(true)
+                {
+                    //
+                    testZero1 = 0;
+                    testZero2 = 0;
+                    testAfter = 0.0f;
+            
+                    testZero1 = ReadUInt(FTell());
+                    //testZero2 = ReadUInt(FTell() + 4);
+                    testAfter = ReadFloat(FTell() + 8);
+                    
+                    if (testZero1 == 0 && testAfter != 0.0f)
+                    {
+                        // Finally move past the one zeroes and we're good!
+                        FSeek(FTell() + 4);
+                        break;
+                    }
+                    // Move forward 4 bytes.
+                    FSeek(FTell() + 4);
+                }
+
+
+                Printf("Test is %d\n", test);
                 //TheUnknown unk;
-                ExtraFaceData extraFaceData[info.WeightCount];//[151];//[info.TriangleCount]; //151
-                ExtraVertNorm extraMeshData[info.VertexCount];
+                Printf("Total stuff! %d\n", totalStuff);
+                //ExtraFaceData extraFaceData[totalStuff];//[151];//[info.TriangleCount]; //151
+                ExtraVertNorm extraMeshData[lodStart.VertexCount];
+
+                FSeek(FTell() + (4*info.NodeCount));
+
+
+
+                VertexWeights weights[lodStart.VertexCount];
+
                 ////RandomOne filler[12];
                 //RandomOne one;
                 //VertexWeights weights[info.WeightCount];
@@ -572,7 +611,7 @@ for(i = 0; i < pieceInfo.PieceCount; i++)
 
 // 279 = tail
 // 530 = same part
-
+return;
 // tnt FSeek(4420);
 FSeek(hdr.NodeOffset - (sizeof(VertexWeights) * info.VertexCount) );
 VertexWeights weights[info.VertexCount];

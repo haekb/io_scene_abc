@@ -496,8 +496,9 @@ class PS2LTBModelReader(object):
                 if mesh_type is MT_SKELETAL:
                     f.seek( 4 * 2, 1)
 
+                # These are used for our vertex weights!
                 lod_vertex_count = unpack('i', f)[0]
-                lod_unknown = unpack('i', f)[0]
+                lod_weighted_nodes_count = unpack('i', f)[0]
 
                 # Haven't mapped out pieces yet...
                 piece_object = Piece()
@@ -708,11 +709,129 @@ class PS2LTBModelReader(object):
                 vertex_list.generate_faces()
                 lod.faces += vertex_list.get_face_list()
 
+
+                if mesh_type is MT_SKELETAL:
+                    #########################################################################
+                    # HACK: There's unknown values after each skeletal mesh piece
+                    # I can't figure out a consistent length for them, but there always 
+                    # seems to be 1 zero int before the known vertex order section.
+                    # So let's skip past that 4 bytes at a time!
+                    
+                    while True:
+                        test_values = unpack('2i', f)
+                        if test_values[0] == 0 and test_values[1] != 0:
+                            # Hey! We found our section, let's go back a bit so we're in the proper order
+                            
+                            f.seek(-4, 1)
+                            print("[HACK] Found ordered vertex array at %d" % f.tell())
+                            break
+                        # Make sure we're only looking 4-bytes at a time.
+                        # Gotta offset that second int read!
+                        f.seek(-4, 1)
+
+                    # End HACK
+                    #########################################################################
+
+                    #
+                    # Here we want to build a list of ordered vertices. 
+                    # After that will come the ordered weights
+                    # We can then do a double loop (oh god so slow)
+                    # that we can add the weights to the already processed verts
+                    #
+                    ordered_vertices = []
+
+                    class OrderedVertex(object):
+                        def __ini__(self):
+                                self.location = Vector()
+                                self.location_padding = 0
+                                self.normal = Vector()
+                                self.normal_padding = 1
+
+                    for vi in range(lod_vertex_count):
+                        ov = OrderedVertex()
+                        ov.location = self._read_vector(f)
+                        ov.location_padding = unpack('f', f)[0]
+                        ov.normal = self._read_vector(f)
+                        ov.normal_padding = unpack('f', f)[0]
+                        ordered_vertices.append(ov)
+                    # End for `vi in range(lod_vertex_count)`
+
+                    
+                    # Also kind of a hack...Skip past the number of bones
+                    #f.seek(4 * node_count, 1)
+
+                    # Ok we need to go through and figure out which bones map to which index
+                    node_map = []
+
+                    # Skip past the zero int
+                    # f.seek(4, 1)
+
+                    print("Currently at %d" % f.tell())
+
+
+                    # Go through and capture every int
+                    # These are the node indexes
+                    for wni in range(lod_weighted_nodes_count):
+                        node_map.append(unpack('i', f)[0])
+
+                    print("Node map: ", node_map)
+                    
+                    for wi in range(lod_vertex_count):
+                        weights = unpack('4h', f)
+                        node_indexes = unpack('4b', f)
+
+                        print("WEIGHTS     :",wi, weights)
+                        print("NODE INDEXES: ",wi, node_indexes)
+                        
+                        normalized_weights = []
+
+                        # Normlize our weights from 0..4096 to 0..1
+                        for weight in weights:
+                            if weight == 0:
+                                continue
+
+                            normalized_weights.append( float(weight) / 4096.0 )
+                            #print (normalized_weights)
+
+                        processed_weights = []
+
+                        for j in range( len(normalized_weights) ):
+                            weight = Weight()
+                            # Set the normalized weight bias
+                            weight.bias = normalized_weights[j]
+                            weight.node_index = node_indexes[j]
+
+                            #print("NODE INDEX: ",weight.node_index)
+
+                            # Dangerous, this is assuming the nodes are in proper order.
+                            # I doubt that's universally true, but so far I haven't seen anything that goes against that...
+                            if weight.node_index != 0:
+                                weight.node_index /= 4
+                                weight.node_index = int(weight.node_index)
+
+                            # Find the proper node!
+                            weight.node_index = node_map[weight.node_index]
+                            
+                            processed_weights.append(weight)
+
+                        ordered_vertex = ordered_vertices[wi]
+
+                        for vi in range( len(lod.vertices) ):
+                            vertex = lod.vertices[vi]
+
+                            if ordered_vertex.location == vertex.location:
+                                lod.vertices[vi].weights = copy.copy(processed_weights)
+                                break
+                        # End for `vi in range( len(lod.vertices) )`
+                    # End for `wi in range(lod_vertex_count)`
+                # End for Skeletal Mesh
+
                 # Add the LOD to the piece
                 piece_object.lods = [lod]
 
                 # Add the piece to the model!
                 model.pieces.append(piece_object) 
+
 
             # End For `piece_index in range( piece_count )`
 
@@ -725,38 +844,6 @@ class PS2LTBModelReader(object):
 
             # Let's seek to node offset
             f.seek(node_offset)
-
-            if mesh_type is MT_SKELETAL:
-                # Then seek backwards based on the vertex count, and the size of the data
-                f.seek(-(vertex_count * (4*3)), 1)
-
-                for i in range(vertex_count):
-                    weights = unpack('4H', f)
-                    node_indexes = unpack('4B', f)
-                    
-                    normalized_weights = []
-
-                    # Normlize our weights from 0..4096 to 0..1
-                    for weight in weights:
-                        if weight == 0:
-                            continue
-
-                        normalized_weights.append( float(weight) / 4096.0 )
-                        print (normalized_weights)
-
-                    for j in range( len(normalized_weights) ):
-                        weight = Weight()
-                        # Set the normalized weight bias
-                        weight.bias = normalized_weights[j]
-                        weight.node_index = node_indexes[j]
-                        # Dangerous, this is assuming the nodes are in proper order.
-                        # I doubt that's universally true, but so far I haven't seen anything that goes against that...
-                        if weight.node_index != 0:
-                            weight.node_index /= 4
-                            weight.node_index = int(weight.node_index)
-                        model.pieces[0].lods[0].vertices[i].weights.append(weight)
-
-
 
             # Handle Nodes!
             f.seek(node_offset)
