@@ -726,34 +726,35 @@ class PS2LTBModelReader(object):
             # Let's seek to node offset
             f.seek(node_offset)
 
-            # Then seek backwards based on the vertex count, and the size of the data
-            f.seek(-(vertex_count * (4*3)), 1)
+            if mesh_type is MT_SKELETAL:
+                # Then seek backwards based on the vertex count, and the size of the data
+                f.seek(-(vertex_count * (4*3)), 1)
 
+                for i in range(vertex_count):
+                    weights = unpack('4H', f)
+                    node_indexes = unpack('4B', f)
+                    
+                    normalized_weights = []
 
-            for i in range(vertex_count):
-                weights = unpack('4H', f)
-                node_indexes = unpack('4B', f)
-                
-                normalized_weights = []
+                    # Normlize our weights from 0..4096 to 0..1
+                    for weight in weights:
+                        if weight == 0:
+                            continue
 
-                # Normlize our weights from 0..4096 to 0..1
-                for weight in weights:
-                    if weight == 0:
-                        continue
+                        normalized_weights.append( float(weight) / 4096.0 )
+                        print (normalized_weights)
 
-                    normalized_weights.append(weight / 4096)
-
-                for j in range( len(normalized_weights) ):
-                    weight = Weight()
-                    # Set the normalized weight bias
-                    weight.weight_bias = normalized_weights[j]
-                    weight.node_index = node_indexes[j]
-                    # Dangerous, this is assuming the nodes are in proper order.
-                    # I doubt that's universally true, but so far I haven't seen anything that goes against that...
-                    if weight.node_index != 0:
-                        weight.node_index /= 4
-                        weight.node_index = int(weight.node_index)
-                    model.pieces[0].lods[0].vertices[i].weights.append(weight)
+                    for j in range( len(normalized_weights) ):
+                        weight = Weight()
+                        # Set the normalized weight bias
+                        weight.bias = normalized_weights[j]
+                        weight.node_index = node_indexes[j]
+                        # Dangerous, this is assuming the nodes are in proper order.
+                        # I doubt that's universally true, but so far I haven't seen anything that goes against that...
+                        if weight.node_index != 0:
+                            weight.node_index /= 4
+                            weight.node_index = int(weight.node_index)
+                        model.pieces[0].lods[0].vertices[i].weights.append(weight)
 
 
 

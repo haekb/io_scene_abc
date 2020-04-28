@@ -629,11 +629,11 @@ class ImportOperatorLTB(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 
     def execute(self, context):
         # Load the model
-        try:
-            model = PS2LTBModelReader().from_file(self.filepath)
-        except Exception as e:
-            show_message_box(str(e), "Read Error", 'ERROR')
-            return {'CANCELLED'}
+        #try:
+        model = PS2LTBModelReader().from_file(self.filepath)
+        #except Exception as e:
+        #    show_message_box(str(e), "Read Error", 'ERROR')
+        #    return {'CANCELLED'}
         
         model.name = os.path.splitext(os.path.basename(self.filepath))[0]
         image = None
