@@ -574,7 +574,7 @@ for(i = 0; i < pieceInfo.PieceCount; i++)
 // 530 = same part
 
 // tnt FSeek(4420);
-FSeek(62304);
+FSeek(hdr.NodeOffset - (sizeof(VertexWeights) * info.VertexCount) );
 VertexWeights weights[info.VertexCount];
 
 FSeek(hdr.NodeOffset);
