@@ -158,7 +158,7 @@ struct PieceInfo {
 };
 
 struct Piece {
-    uint32 Padding1;
+    uint32 NodeReference;//Padding1;
     float SpecularPower;
     float SpecularScale;
     float LODWeight;
@@ -176,9 +176,10 @@ struct Node {
     //ubyte flag;    
 //uint16 UnknownPadding;
     Vector4 Matrix[4];
-    ubyte unkB1;
-    ubyte unkB2;
-    ushort unk2;
+    uint32 ParentPiece;
+    //ubyte unkB1;
+    //ubyte unkB2;
+    //ushort unk2;
     uint32 ChildCount;
     short Index; // 
     short Unk; // Maybe flag?
@@ -224,12 +225,6 @@ struct ExtraVertNorm {
 
 struct RandomOne {
     uint32 One;
-};
-
-struct VertexWeights {
-    uint32 unk1;
-    uint32 zero;
-    uint32 unk2;
 };
 
 struct ExtraFaceData {
@@ -327,6 +322,23 @@ struct Animation (uint32 nodeCount) {
     //short test;
     //NodeKeyframe Nodes(KeyFrameCount)[nodeCount];
 };//5052
+
+struct WeightHeader {
+    uint32 Count;
+};
+
+struct VertexWeights {
+    // Weights add up to 4096
+    short firstWeight;
+    short secondWeight;
+    short thirdWeight;
+    short forthWeight;
+    // -1 = Not used
+    char firstNode;
+    char secondNode;
+    char thirdNode;
+    char forthNode;
+};
 
 // trhis is a test I'm testing without mouse control enabled
 //Section section;
@@ -558,6 +570,12 @@ for(i = 0; i < pieceInfo.PieceCount; i++)
     }
 }
 
+// 279 = tail
+// 530 = same part
+
+// tnt FSeek(4420);
+FSeek(62304);
+VertexWeights weights[info.VertexCount];
 
 FSeek(hdr.NodeOffset);
 Node node[info.NodeCount] <optimize=false>;
