@@ -267,6 +267,7 @@ def import_model(model, options):
             uv_texture = mesh.uv_layers[piece.material_index]
 
             # Set the correct UV as active
+            uv_texture.active = True
             uv_texture.active_render = True
 
             for face_index, face in enumerate(lod.faces):
