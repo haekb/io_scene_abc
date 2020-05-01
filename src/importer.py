@@ -81,6 +81,12 @@ def import_model(model, options):
             X+: Right
             Y+: Up
             Z+: Forward
+
+        Jake: Animation wise, action_hero.abc seems to use...
+        
+        Y+: Forward
+        X-: Up
+        Z+: Right
         '''
         (forward, right, up) = map(lambda x: -x.xyz, node.bind_matrix.col[0:3])
 

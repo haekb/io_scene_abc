@@ -1,4 +1,48 @@
 from .abc import *
+from math import pi
+from mathutils import Vector, Matrix, Quaternion, Euler
+
+# Compared against hero_action.lta and shifted things left, wrapped 0, to 2
+# and added proper flips.
+def convert_blender_matrix_to_lt_matrix(mat):
+    new_mat = Matrix()
+
+    new_mat[0][0] = -mat[0][1]
+    new_mat[0][1] = -mat[0][2]
+    new_mat[0][2] = -mat[0][0]
+
+    new_mat[1][0] = -mat[1][1]
+    new_mat[1][1] = mat[1][2]
+    new_mat[1][2] = mat[1][0]
+
+    new_mat[2][0] = -mat[2][1]
+    new_mat[2][1] = mat[2][2]
+    new_mat[2][2] = mat[2][0]
+
+    # This is just 0,0,0,1, so can't really test out where the -1 goes.
+    new_mat[3][0] = mat[3][1]
+    new_mat[3][1] = mat[3][2]
+    new_mat[3][2] = mat[3][0] 
+
+
+    # Just apply the translation
+    trans = mat.to_translation()
+    new_mat.translation = trans
+    
+
+
+    return new_mat
+
+
+def process_matrix(matrix, rot, first_bone = False):
+    # Convert the quaternion, and apply the translation!
+
+    mat = rot.to_matrix().to_4x4()
+    mat.translation = matrix.to_translation()
+    mat = convert_blender_matrix_to_lt_matrix(mat)
+    return mat
+
+
 
 
 class ModelBuilder(object):
@@ -7,6 +51,8 @@ class ModelBuilder(object):
 
     @staticmethod
     def from_armature(armature_object):
+        print("--------------------------")
+        print("Building from Armature")
         assert (armature_object.type == 'ARMATURE')
         armature = armature_object.data
         mesh_objects = [child for child in armature_object.children if child.type == 'MESH']
@@ -58,11 +104,15 @@ class ModelBuilder(object):
             for (vertex_index, vertex) in enumerate(mesh.vertices):
                 weights = []
                 for vertex_group in mesh_object.vertex_groups:
+                    #pass
+                    # FIXME: Re-enable this once we figure out skeletons
+                    # BUG: Location not used?
                     try:
                         bias = vertex_group.weight(vertex_index)
                         bone = vertex_group_nodes[vertex_group]
-                        bone_matrix = armature_object.matrix_world * bone.matrix_local
-                        location = (vertex.co * mesh_object.matrix_world) * bone_matrix.transposed().inverted()
+                        bone_matrix = armature_object.matrix_world @ bone.matrix_local
+
+                        location = (vertex.co @ mesh_object.matrix_world) @ bone_matrix.transposed().inverted()
                         if bias != 0.0 and bone is not None:
                             weight = Weight()
                             weight.node_index = bone_indices[bone]
@@ -73,7 +123,7 @@ class ModelBuilder(object):
                         pass
 
                 v = Vertex()
-                v.location = vertex.co
+                v.location = vertex.undeformed_co
                 v.normal = vertex.normal
                 v.weights.extend(weights)
                 lod.vertices.append(v)
@@ -107,7 +157,21 @@ class ModelBuilder(object):
             if bone_index == 0:  # DEBUG: set removable?
                 node.is_removable = True
             # TODO: matrix local might be relative to previous bone?
-            node.bind_matrix = armature_object.matrix_world * bone.matrix_local
+
+            print("Raw", node.name, bone.matrix_local)
+
+            matrix = armature_object.matrix_world @ bone.matrix_local
+           
+            local_rot = matrix.to_quaternion()
+
+            if bone.parent is not None:
+                parent_matrix = armature_object.matrix_world @ bone.parent.matrix_local
+                matrix = parent_matrix.inverted() @ matrix
+                
+            
+            node.bind_matrix = process_matrix(bone.matrix_local, local_rot, bone.parent == None)
+
+            print("Processed", node.name, node.bind_matrix)
             node.child_count = len(bone.children)
             model.nodes.append(node)
 
@@ -131,8 +195,19 @@ class ModelBuilder(object):
             transforms = list()
             for _ in animation.keyframes:
                 transform = Animation.Keyframe.Transform()
-                transform.location = pose_bone.location
-                transform.rotation = pose_bone.rotation_quaternion
+
+                matrix = armature_object.matrix_world @ pose_bone.matrix
+                local_rot = bone.matrix_local.to_quaternion()
+
+                if pose_bone.parent is not None:
+                    parent_matrix = armature_object.matrix_world @ pose_bone.parent.matrix
+                    matrix = parent_matrix.inverted() @ matrix
+
+                # FIXME: This produces garbled animations
+                transform.matrix = process_matrix(matrix, local_rot)
+
+                #transform.location = pose_bone.location
+                #transform.rotation = pose_bone.rotation_quaternion
                 transforms.append(transform)
             animation.node_keyframe_transforms.append(transforms)
         model.animations.append(animation)
