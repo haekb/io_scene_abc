@@ -8,16 +8,16 @@ def convert_blender_matrix_to_lt_matrix(mat):
     new_mat = Matrix()
 
     new_mat[0][0] = -mat[0][1]
-    new_mat[0][1] = -mat[0][2]
+    new_mat[0][1] = mat[0][2]
     new_mat[0][2] = -mat[0][0]
 
     new_mat[1][0] = -mat[1][1]
     new_mat[1][1] = mat[1][2]
-    new_mat[1][2] = mat[1][0]
+    new_mat[1][2] = -mat[1][0]
 
     new_mat[2][0] = -mat[2][1]
     new_mat[2][1] = mat[2][2]
-    new_mat[2][2] = mat[2][0]
+    new_mat[2][2] = -mat[2][0]
 
     # This is just 0,0,0,1, so can't really test out where the -1 goes.
     new_mat[3][0] = mat[3][1]
@@ -179,6 +179,7 @@ class ModelBuilder(object):
 
         ''' ChildModels '''
         child_model = ChildModel()
+
         for _ in model.nodes:
             child_model.transforms.append(Animation.Keyframe.Transform())
         model.child_models.append(child_model)
@@ -204,7 +205,7 @@ class ModelBuilder(object):
                     matrix = parent_matrix.inverted() @ matrix
 
                 # FIXME: This produces garbled animations
-                transform.matrix = process_matrix(matrix, local_rot)
+                transform.matrix = matrix # process_matrix(matrix, local_rot)
 
                 #transform.location = pose_bone.location
                 #transform.rotation = pose_bone.rotation_quaternion
