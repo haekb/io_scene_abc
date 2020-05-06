@@ -225,6 +225,9 @@ class PS2LTBModelReader(object):
         self._node_count = 0
         self._lod_count = 0
 
+        # Hack to count sockets
+        self._socket_counter = 0
+
     # Leftovers from ABC Model Reader
     def _read_matrix(self, f):
         data = unpack('16f', f)
@@ -333,6 +336,7 @@ class PS2LTBModelReader(object):
                 [self._read_transform(f) for _ in range(animation.keyframe_count)])
         return animation
 
+    
     def _read_socket(self, f):
         socket = Socket()
         # We don't know all the values here, so skip the ones we can't use yet.
@@ -343,6 +347,11 @@ class PS2LTBModelReader(object):
         f.seek(4, 1)
         socket.node_index = unpack('I', f)[0]
         f.seek(4 * 2, 1)
+
+        # Fill in some missing data
+        socket.name = "Socket" + str(self._socket_counter)
+        self._socket_counter += 1
+
         return socket
 
     def _read_anim_binding(self, f):
