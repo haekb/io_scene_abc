@@ -143,7 +143,9 @@ struct LOD {
 };
 
 struct LODSkeletal {
-    uint32 SkelUnknown[2];
+    uint32 SkelUnk;
+    uint32 UnknownSectorSize; // This number may need to be rounded or aligned
+    //uint32 SkelUnknown[2];
 };
 // End LOD Zone!
 
@@ -216,12 +218,18 @@ struct EndSignal {
 };
 //440
 
+
 struct ExtraVertNorm {
     Vector3 VertexData;
     float VertexPadding;
     Vector3 NormalData;
     float NormalPadding;
 };
+
+struct ExtraVertNormWrapper (uint32 count) {
+    ExtraVertNorm list[count] <optimize=false>;
+};
+
 
 struct RandomOne {
     uint32 One;
@@ -340,6 +348,23 @@ struct VertexWeights {
     char forthNode;
 };
 
+struct VertexWeightsWrapper (uint32 count) {
+    VertexWeights weights[count] <optimize=false>;
+};
+
+struct UnknownSector {
+    short unknownValues[2];
+};
+
+struct UnknownSectorWrapper (uint32 count) {
+    UnknownSector unk[count] <optimize=false>;
+};
+
+struct UnknownSectorAlt {
+    short Count;
+    short Values[Count];
+};
+
 // trhis is a test I'm testing without mouse control enabled
 //Section section;
 Header hdr;
@@ -391,49 +416,18 @@ local int testZero1 = 0;
 local int testZero2 = 0;
 local float testAfter = 0.0f;
 
+local int pad = 0;
+
 // Commented out so I can work on non-geom stuff
 
 // Okay, let's loop through the pieces
 for(i = 0; i < pieceInfo.PieceCount; i++)
 {
+    Printf("----------\nNew Piece\n");
+
     // Reset some vars
     checkForMoreData = 0;
     test= 0;
-
-    // HACK
-    // Check for Vector3 of 0.8's
-    // This is constant all the pieces
-
-    while(true)
-    {
-        // DEBUG: Testing weights
-        break;
-        //HeroEights eights;
-        heroEight1 = 0.0f;
-        heroEight2 = 0.0f;
-        heroEight3 = 0.0f;
-    
-        // Skip first item in Piece
-        peekAmount = 4;
-
-        heroEight1 = ReadFloat(FTell() + peekAmount);
-        heroEight2 = ReadFloat(FTell() + peekAmount + 4);
-        heroEight3 = ReadFloat(FTell() + peekAmount + 8);
-
-        if (heroEight1 == 0.8f && heroEight2 == 0.8f && heroEight3 == 0.8f)
-        {
-            break;
-        }
-
-        // Slowly crawl us up one int at a time!
-        FSeek( FTell() + 4 );
-
-        if (FTell() + (4*4) >= FileSize())
-        {
-            breakFromPieces = 1;
-            break;
-        }
-    }
 
     //FSeek( FTell() - 4 );
 
@@ -504,7 +498,8 @@ for(i = 0; i < pieceInfo.PieceCount; i++)
                     FSeek(FTell() + (4*4));
                 }
                 totalStuff += 1;
-                MeshData meshData;
+                //MeshData meshData;
+                FSeek(FTell() + sizeof(MeshData));
             }            
 
             //MeshSet Data <optimize=false>;
@@ -545,8 +540,8 @@ for(i = 0; i < pieceInfo.PieceCount; i++)
         // Calculate batch size
         setSize = setEnd - setStart;
 
-        Printf("size (%d) = size_end (%d) - size_start (%d)\n", setSize, setEnd, setStart);
-        Printf("Set Size is %d\n", setSize);
+        //Printf("size (%d) = size_end (%d) - size_start (%d)\n", setSize, setEnd, setStart);
+        //Printf("Set Size is %d\n", setSize);
         
         // Monolith chose around 13kb as the batch size limit
         // (The max possible size is 16kb!)
@@ -557,50 +552,77 @@ for(i = 0; i < pieceInfo.PieceCount; i++)
         } 
         else // If we're not at that cap, then we can safely assume there's no more batched data here.
         {
-            
+           
             if (piece.MeshType == 5) 
             {
-                
+/*
+                testZero1 = FTell();
+                Printf("Start unknown sector skip at %d\n", testZero1);
                 // Skip some unknown and unknown length values
-                // Seems to be at least 2 4-byte zeroes before the next part!
+                // Just skip until we reach a valid non-zero float.
+                // I hope I can figure this out before I reach a case where the first vertex is 0.0...
                 while(true)
                 {
-                    //
-                    testZero1 = 0;
-                    testZero2 = 0;
-                    testAfter = 0.0f;
-            
-                    testZero1 = ReadUInt(FTell());
-                    //testZero2 = ReadUInt(FTell() + 4);
-                    testAfter = ReadFloat(FTell() + 8);
-                    
-                    if (testZero1 == 0 && testAfter != 0.0f)
+                    testAfter = ReadFloat(FTell());
+                    //Printf("Testing character to see if it's a float: %f\n", testAfter);
+                    //if (testAfter != 0.0f)
+                    if (testAfter > 0.000001 || testAfter < -0.000001)
                     {
                         // Finally move past the one zeroes and we're good!
-                        FSeek(FTell() + 4);
+                        //FSeek(FTell() + 4);
                         break;
                     }
                     // Move forward 4 bytes.
                     FSeek(FTell() + 4);
                 }
+                testZero2 = FTell();
+                Printf("Finish unknown sector skip at %d\n", testZero2);
+                Printf("Total size of unknown sector: %d\n", testZero2 - testZero1);
+*/
+                testZero1 = FTell();
+                while (true)
+                {
+                    UnknownSectorAlt unkSector;
 
+                    // While this works kinda, you need to account for some skipping
+                    testZero2 = FTell();
 
-                Printf("Test is %d\n", test);
-                //TheUnknown unk;
-                Printf("Total stuff! %d\n", totalStuff);
-                //ExtraFaceData extraFaceData[totalStuff];//[151];//[info.TriangleCount]; //151
-                ExtraVertNorm extraMeshData[lodStart.VertexCount];
+                    if( ((testZero2 - testZero1) / 2) >= lodSkeletal.UnknownSectorSize)
+                    {   
+                        while(true) 
+                        {
 
-                FSeek(FTell() + (4*info.NodeCount));
+                            // Look for the 1.0 vertex padding
+                            testAfter = ReadFloat(FTell() + (4*3));
+                            if (testAfter == 1.0f)
+                            {
+                                Printf("Found 1.0f 3 ints away at %d, 1.0f position: %d\n", FTell(), FTell() + (4*3));
+                                break;
+                            }
+                            // Skip 2 bytes, because there may be a short of line padding...
+                            FSkip(2);
+                        }
+                        // Super hack: Use the remainder value to break through twice.
+                        if (testAfter == 1.0f)
+                        {
+                            break;
+                        }
+                    }
+                }
+                testZero2 = FTell();
+                Printf("Finish unknown sector skip at %d\n", testZero2);
+                Printf("Total size of unknown sector: %d\n", testZero2 - testZero1);
+                //UnknownSectorWrapper unkSector(lodSkeletal.UnknownSectorSize);
 
+                ExtraVertNormWrapper extraMeshData(lodStart.VertexCount) <optimize=false>;
 
+                // Skip past the indexed bone list
+                FSeek(FTell() + (4*lodStart.WeightedNodesCount));
 
-                VertexWeights weights[lodStart.VertexCount];
+                VertexWeightsWrapper weights(lodStart.VertexCount) <optimize=false>;
 
-                ////RandomOne filler[12];
-                //RandomOne one;
-                //VertexWeights weights[info.WeightCount];
             }
+
             
             break;
         }
@@ -611,17 +633,17 @@ for(i = 0; i < pieceInfo.PieceCount; i++)
 
 // 279 = tail
 // 530 = same part
-return;
+//return;
 // tnt FSeek(4420);
 FSeek(hdr.NodeOffset - (sizeof(VertexWeights) * info.VertexCount) );
-VertexWeights weights[info.VertexCount];
+//VertexWeights weights[info.VertexCount];
 
 FSeek(hdr.NodeOffset);
 Node node[info.NodeCount] <optimize=false>;
 
 // Actually Anim WeightSet, see dog_action.lta / ltb
 NodeOther nodeOther;
-WeightSet weights[nodeOther.WeightSetCount];
+WeightSet weightSets[nodeOther.WeightSetCount];
 
 FSeek(hdr.SubModelOffset);
 ChildModelHeader childModelHdr;

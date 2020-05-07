@@ -501,9 +501,13 @@ class PS2LTBModelReader(object):
                 mesh_set_index = 1 # this gets multiplied
                 mesh_index = 0 # triangle_count + vertex_count
 
+                # Amount of shorts that make up the unknown section before vertex weighting information
+                lod_skeletal_unk_sector_count = 0
+
                 # There's two additional ints with skeletal meshes 
                 if mesh_type is MT_SKELETAL:
-                    f.seek( 4 * 2, 1)
+                    f.seek( 4 , 1)
+                    lod_skeletal_unk_sector_count = unpack('i', f)[0]
 
                 # These are used for our vertex weights!
                 lod_vertex_count = unpack('i', f)[0]
@@ -720,23 +724,58 @@ class PS2LTBModelReader(object):
 
 
                 if mesh_type is MT_SKELETAL:
+
+
+                    unk_sector_start = f.tell()
+                    unk_sector_finished = False
+                    while True:
+                        unk_amount_to_skip = unpack('H', f)[0]
+
+                        # This section stores a count and then various values (all in shorts)
+                        # So skip the count * 2 (length of a short in this case)
+                        f.seek(+(unk_amount_to_skip * 2), 1)
+
+                        # The current count in short.
+                        current_total = (f.tell() - unk_sector_start) / 2
+                        # Oh we're done?..nope. We need to skip some padding first!
+                        if current_total >= lod_skeletal_unk_sector_count:
+                            #print("(%d/%d) Finished!" % (current_total, lod_skeletal_unk_sector_count))
+                            # Okay, loop through and look for 1.0f 3*4 bytes away!
+                            while True:
+                                test_values = unpack('4f', f)
+                                #print("Testing 4th value %f at %d" % (test_values[3], f.tell()))
+
+                                if test_values[3] == 1.0:
+                                    unk_sector_finished = True
+                                    # Go back 4*4 bytes
+                                    f.seek(-4*4, 1)
+                                    break
+                            
+                                # Go back 14 bytes (We want to crawl up 2 bytes at a time)
+                                f.seek(-14, 1)
+                        
+                        if unk_sector_finished:
+                            break
+                                
+                            
+
                     #########################################################################
                     # HACK: There's unknown values after each skeletal mesh piece
                     # I can't figure out a consistent length for them, but there always 
                     # seems to be 1 zero int before the known vertex order section.
                     # So let's skip past that 4 bytes at a time!
                     
-                    while True:
-                        test_values = unpack('2i', f)
-                        if test_values[0] == 0 and test_values[1] != 0:
-                            # Hey! We found our section, let's go back a bit so we're in the proper order
+                    # while True:
+                    #     test_values = unpack('2i', f)
+                    #     if test_values[0] == 0 and test_values[1] != 0:
+                    #         # Hey! We found our section, let's go back a bit so we're in the proper order
                             
-                            f.seek(-4, 1)
-                            print("[HACK] Found ordered vertex array at %d" % f.tell())
-                            break
-                        # Make sure we're only looking 4-bytes at a time.
-                        # Gotta offset that second int read!
-                        f.seek(-4, 1)
+                    #         f.seek(-4, 1)
+                    #         print("[HACK] Found ordered vertex array at %d" % f.tell())
+                    #         break
+                    #     # Make sure we're only looking 4-bytes at a time.
+                    #     # Gotta offset that second int read!
+                    #     f.seek(-4, 1)
 
                     # End HACK
                     #########################################################################
@@ -755,6 +794,8 @@ class PS2LTBModelReader(object):
                                 self.location_padding = 0
                                 self.normal = Vector()
                                 self.normal_padding = 1
+
+                    print("Before Ordered Vertex %d, vertex count: %d" % (f.tell(), lod_vertex_count))
 
                     for vi in range(lod_vertex_count):
                         ov = OrderedVertex()
@@ -789,8 +830,8 @@ class PS2LTBModelReader(object):
                         weights = unpack('4h', f)
                         node_indexes = unpack('4b', f)
 
-                        print("WEIGHTS     :",wi, weights)
-                        print("NODE INDEXES: ",wi, node_indexes)
+                        #print("WEIGHTS     :",wi, weights)
+                        #print("NODE INDEXES: ",wi, node_indexes)
                         
                         normalized_weights = []
 
