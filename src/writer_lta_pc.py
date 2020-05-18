@@ -241,13 +241,13 @@ class LTAModelWriter(object):
 
         ''' AnimBindings '''
         ab_list_node = on_load_cmds_node.create_child('anim-bindings')
-        for anim_binding in model.anim_bindings:
+        for i, anim_binding in enumerate(model.anim_bindings):
             ab_node = ab_list_node.create_child('anim-binding')
             ab_node.create_child('name', anim_binding.name)
             ab_node.create_child('dims').create_property(anim_binding.extents)
             ab_node.create_child('translation').create_property(anim_binding.origin)
-            # FIXME: This isn't hooked up to the builder..
-            ab_node.create_child('interp-time', 200)
+            # Gotta look for this one!
+            ab_node.create_child('interp-time', model.animations[i].interpolation_time)
 
         ''' Node Flags '''
         snf_list_node = on_load_cmds_node.create_child('set-node-flags')
