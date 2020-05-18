@@ -221,8 +221,9 @@ class LTAModelWriter(object):
 
         ''' Node Flags '''
         snf_list_node = on_load_cmds_node.create_child('set-node-flags')
+        snf_container = snf_list_node.create_container()
         for node in model.nodes:
-            snf_list_node.create_property( [node.name, node.flags] )
+            snf_container.create_property( [node.name, node.flags] )
 
         ''' Skeleton Deformers (Vertex Weights!) '''
         for piece in model.pieces:
@@ -234,6 +235,7 @@ class LTAModelWriter(object):
             influences_node = sd_node.create_child('influences')
 
             weightsets_node = sd_node.create_child('weightsets')
+            weightsets_container = weightsets_node.create_container()
 
             # This is a unique list of bone names used in this piece
             bone_influences = []
@@ -254,7 +256,7 @@ class LTAModelWriter(object):
                         weights.append(new_node_index)
                         weights.append(weight.bias)
 
-                    weightsets_node.create_property( weights )
+                    weightsets_container.create_property( weights )
 
             influences_node.create_property( bone_influences )
         # End For
@@ -311,7 +313,8 @@ class LTAModelWriter(object):
             model_node = model.nodes[index]
 
             children_node = root_node.create_child('children')
-            transform_node = children_node.create_child('transform', model_node.name)
+            container_node = children_node.create_container()
+            transform_node = container_node.create_child('transform', model_node.name)
             transform_node.create_child('matrix').create_property(model_node.bind_matrix)
 
             for i in range(model_node.child_count):
@@ -335,8 +338,14 @@ class LTAModelWriter(object):
             mesh_node = geometry_node.create_child('mesh', piece.name)
 
             vertex_node = mesh_node.create_child('vertex')
+            vertex_container = vertex_node.create_container()
+
             normal_node = mesh_node.create_child('normals')
+            # It's your everyday...
+            normal_container = normal_node.create_container()
+
             uv_node = mesh_node.create_child('uvs')
+            uv_container = uv_node.create_container()
 
             tex_fs_node = mesh_node.create_child('tex-fs')
             tri_fs_node = mesh_node.create_child('tri-fs')
@@ -349,14 +358,14 @@ class LTAModelWriter(object):
                 for face in lod.faces:
                     for face_vertex in face.vertices:
                         texcoords = [ face_vertex.texcoord.x, face_vertex.texcoord.y ]
-                        uv_node.create_property( texcoords )
+                        uv_container.create_property( texcoords )
 
                         index_list.append( face_vertex.vertex_index )
                 # End For
 
                 for vertex in lod.vertices:
-                    vertex_node.create_property( vertex.location )
-                    normal_node.create_property( vertex.normal )
+                    vertex_container.create_property( vertex.location )
+                    normal_container.create_property( vertex.normal )
                 # End For
             # End For
 
@@ -410,24 +419,26 @@ class LTAModelWriter(object):
             # End For
 
             anims_node = as_node.create_child('anims')
+            anims_container_node = anims_node.create_container()
 
             for i, node_keyframe_transform_list in enumerate(animation.node_keyframe_transforms):
-                anim_node = anims_node.create_child('anim')
+                anim_node = anims_container_node.create_child('anim')
                 anim_node.create_child('parent', model.nodes[i].name)
 
                 frames_node = anim_node.create_child('frames')
 
                 # Position / Quaternion
                 posquat_node = frames_node.create_child('posquat')
+                posquat_container = posquat_node.create_container()
 
                 # Unlike every other property, each transform is it's own prop
                 for keyframe_transform in node_keyframe_transform_list:
 
                     # Each transform seems to have its own empty wrapper
-                    container_node = posquat_node.create_container()
+                    keyframe_container = posquat_container.create_container()
 
-                    container_node.create_property( keyframe_transform.location )
-                    container_node.create_property( keyframe_transform.rotation )
+                    keyframe_container.create_property( keyframe_transform.location )
+                    keyframe_container.create_property( keyframe_transform.rotation )
                 # End For
             # End For
         # End For
