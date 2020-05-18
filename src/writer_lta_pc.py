@@ -367,16 +367,17 @@ class LTAModelWriter(object):
             tri_fs_node = mesh_node.create_child('tri-fs')
 
             # For both tex and tri fs. Because I don't know why they'd be different..
-            index_list = []
+            face_index_list = []
+            uv_index_list = []
 
             for lod in piece.lods:
-
                 for face in lod.faces:
                     for face_vertex in face.vertices:
                         texcoords = [ face_vertex.texcoord.x, face_vertex.texcoord.y ]
                         uv_container.create_property( texcoords )
 
-                        index_list.append( face_vertex.vertex_index )
+                        face_index_list.append( face_vertex.vertex_index )
+                    # End For    
                 # End For
 
                 for vertex in lod.vertices:
@@ -385,9 +386,17 @@ class LTAModelWriter(object):
                 # End For
             # End For
 
+
+            # Okay this doesn't seem like the best way to do it, but it works..
+            # We need a list filled with 0..Length of Face Index List.
+            # I tried to squish this under face_index_list.append but it doesn't seem to like that.
+            for i in range( len(face_index_list) ):
+                uv_index_list.append(i)
+            # End For
+
             # Okay now add the prop list
-            tri_fs_node.create_property( index_list )
-            tex_fs_node.create_property( index_list )
+            tri_fs_node.create_property( face_index_list )
+            tex_fs_node.create_property( uv_index_list )
 
             # Okay let's deal with Lithtech 2.1/Talon appearence node
             appearance_node = p_node.create_child('appearance')
