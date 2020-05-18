@@ -10,17 +10,14 @@ Format | Import | Export
 --- | --- | ---
 ABC | Limited | Limited
 LTA | No | No
-LTB (PS2) | WIP | No
+LTB (PS2) | Limited | No
 LTB (PC) | No | No
 
 The ABC file format description can be found on our wiki [here](https://github.com/cmbasnett/io_scene_abc/wiki/ABC).
 
-Additional format information can be found in [here](https://github.com/haekb/io_scene_lithtech/research)
+Additional format information can be found in [here](https://github.com/haekb/io_scene_lithtech/tree/master/research)
 
 ![](https://raw.githubusercontent.com/haekb/io_scene_lithtech/master/doc/readme/example.png)
-
-## Notes
-This addon is a **work in progress**! If you would like to help with this project, please contact me on Discord (Colin Basnett#0827).
 
 ## Known Issues
 Though the animation data format is known, this plugin does not yet support the importing or exporting of animations.

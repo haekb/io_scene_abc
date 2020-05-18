@@ -1,6 +1,14 @@
 import bpy
 import bmesh
 
+# Displays a message box that's immensely more helpful than errors
+def show_message_box(message = "", title = "Message Box", icon = 'INFO'):
+
+    def draw(self, context):
+        self.layout.label(text=message)
+
+    bpy.context.window_manager.popup_menu(draw, title = title, icon = icon)
+
 
 def delete_all_objects():
     if bpy.ops.object.mode_set.poll():
