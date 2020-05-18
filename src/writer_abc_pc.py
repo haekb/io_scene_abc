@@ -2,7 +2,7 @@ import struct
 import itertools
 
 
-class ModelWriter(object):
+class ABCModelWriter(object):
     @staticmethod
     def _string_to_bytes(string):
         return struct.pack('H{0}s'.format(len(string)), len(string), string.encode('ascii'))

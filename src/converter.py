@@ -15,7 +15,7 @@ from .utils import show_message_box
 from .abc import *
 
 from .reader_ltb_ps2 import PS2LTBModelReader
-from .writer import ModelWriter
+from .writer_abc_pc import ABCModelWriter
 
 
 class ConvertLTBToABC(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
@@ -48,7 +48,7 @@ class ConvertLTBToABC(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 
         print ("Converting %s to %s" % (ltb_path, abc_path) )
 
-        ModelWriter().write(model, abc_path)
+        ABCModelWriter().write(model, abc_path)
 
         return {'FINISHED'}
 

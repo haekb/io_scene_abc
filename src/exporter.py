@@ -2,10 +2,10 @@ from bpy.types import Operator
 from bpy_extras.io_utils import ExportHelper
 from bpy.props import StringProperty, EnumProperty
 from .builder import ModelBuilder
-from .writer import ModelWriter
+from .writer_abc_pc import ABCModelWriter
 
 
-class ExportOperator(Operator, ExportHelper):
+class ExportOperatorABC(Operator, ExportHelper):
     """This appears in the tooltip of the operator and in the generated docs"""
     bl_idname = "io_scene_abc.abc_export"  # important since its how bpy.ops.import_test.some_data is constructed
     bl_label = "Export Lithtech ABC"
@@ -32,8 +32,8 @@ class ExportOperator(Operator, ExportHelper):
     def execute(self, context):
         armature_object = context.scene.objects[self.armature]
         model = ModelBuilder().from_armature(armature_object)
-        ModelWriter().write(model, self.filepath)
+        ABCModelWriter().write(model, self.filepath)
         return {'FINISHED'}
 
     def menu_func_export(self, context):
-        self.layout.operator(ExportOperator.bl_idname, text='Lithtech ABC (.abc)')
+        self.layout.operator(ExportOperatorABC.bl_idname, text='Lithtech ABC (.abc)')
