@@ -40,6 +40,7 @@ def process_matrix(matrix, rot, first_bone = False):
     mat = rot.to_matrix().to_4x4()
     mat.translation = matrix.to_translation()
     mat = convert_blender_matrix_to_lt_matrix(mat)
+
     return mat
 
 
@@ -156,22 +157,22 @@ class ModelBuilder(object):
             node.flags = 0
             if bone_index == 0:  # DEBUG: set removable?
                 node.is_removable = True
-            # TODO: matrix local might be relative to previous bone?
 
-            print("Raw", node.name, bone.matrix_local)
+            #print("Raw", node.name, bone.matrix_local)
 
             matrix = armature_object.matrix_world @ bone.matrix_local
-           
+
+            # TODO: matrix local might be relative to previous bone?
+            # TODO: Jake: Maybe! But probably not like this...
+            # if bone.parent is not None:
+            #     parent_matrix = armature_object.matrix_world @ bone.parent.matrix_local
+            #     matrix @= parent_matrix
+
             local_rot = matrix.to_quaternion()
 
-            if bone.parent is not None:
-                parent_matrix = armature_object.matrix_world @ bone.parent.matrix_local
-                matrix = parent_matrix.inverted() @ matrix
-                
-            
             node.bind_matrix = process_matrix(bone.matrix_local, local_rot, bone.parent == None)
 
-            print("Processed", node.name, node.bind_matrix)
+            #print("Processed", node.name, node.bind_matrix)
             node.child_count = len(bone.children)
             model.nodes.append(node)
 
@@ -198,15 +199,18 @@ class ModelBuilder(object):
                 transform = Animation.Keyframe.Transform()
 
                 matrix = armature_object.matrix_world @ pose_bone.matrix
-                local_rot = bone.matrix_local.to_quaternion()
+                local_rot =  pose_bone.matrix.to_quaternion()
 
-                if pose_bone.parent is not None:
-                    parent_matrix = armature_object.matrix_world @ pose_bone.parent.matrix
-                    matrix = parent_matrix.inverted() @ matrix
+                #if pose_bone.parent is not None:
+                #    parent_matrix = armature_object.matrix_world @ pose_bone.parent.matrix_local
+                #    matrix = parent_matrix.inverted() @ matrix
+
+
+
 
                 # FIXME: This produces garbled animations
-                transform.matrix = matrix # process_matrix(matrix, local_rot)
-
+                transform.matrix =  process_matrix(matrix, local_rot)
+                #print(pose_bone.location)
                 #transform.location = pose_bone.location
                 #transform.rotation = pose_bone.rotation_quaternion
                 transforms.append(transform)

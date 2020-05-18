@@ -498,8 +498,9 @@ for(i = 0; i < pieceInfo.PieceCount; i++)
                     FSeek(FTell() + (4*4));
                 }
                 totalStuff += 1;
-                //MeshData meshData;
-                FSeek(FTell() + sizeof(MeshData));
+
+                MeshData meshData;
+                //FSeek(FTell() + sizeof(MeshData));
             }            
 
             //MeshSet Data <optimize=false>;
@@ -555,30 +556,6 @@ for(i = 0; i < pieceInfo.PieceCount; i++)
            
             if (piece.MeshType == 5) 
             {
-/*
-                testZero1 = FTell();
-                Printf("Start unknown sector skip at %d\n", testZero1);
-                // Skip some unknown and unknown length values
-                // Just skip until we reach a valid non-zero float.
-                // I hope I can figure this out before I reach a case where the first vertex is 0.0...
-                while(true)
-                {
-                    testAfter = ReadFloat(FTell());
-                    //Printf("Testing character to see if it's a float: %f\n", testAfter);
-                    //if (testAfter != 0.0f)
-                    if (testAfter > 0.000001 || testAfter < -0.000001)
-                    {
-                        // Finally move past the one zeroes and we're good!
-                        //FSeek(FTell() + 4);
-                        break;
-                    }
-                    // Move forward 4 bytes.
-                    FSeek(FTell() + 4);
-                }
-                testZero2 = FTell();
-                Printf("Finish unknown sector skip at %d\n", testZero2);
-                Printf("Total size of unknown sector: %d\n", testZero2 - testZero1);
-*/
                 testZero1 = FTell();
                 while (true)
                 {

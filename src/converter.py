@@ -21,7 +21,7 @@ from .writer import ModelWriter
 class ConvertLTBToABC(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     """This appears in the tooltip of the operator and in the generated docs"""
     bl_idname = 'io_scene_lithtech.ltb_convert'  # important since its how bpy.ops.import_test.some_data is constructed
-    bl_label = 'Convert Lithtech LTB to ABC'
+    bl_label = 'Convert Lithtech PS2 LTB to ABC'
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
 
@@ -85,18 +85,25 @@ class ModelStubber(object):
         model.nodes[0].bind_matrix[3][2] = 0.0
         model.nodes[0].bind_matrix[3][3] = 1.0
 
+        # Fix specular power, scale, and lod weight
+        for i in range(len(model.pieces)):
+            model.pieces[i].specular_power = 5.0
+            model.pieces[i].specular_scale = 1.0
+            model.pieces[i].lod_weight = 1.0
+
         '''
         This function will just create fake parts of the model
         Because LithTech needs at least something in every section!
         '''
         animation = Animation()
         animation.name = 'ConvertedFromPS2'
-        animation.extents = Vector((10, 10, 10))
+        animation.extents = Vector((0, 0, 0))
         animation.keyframes.append(Animation.Keyframe())
         for node_index, (node) in enumerate(model.nodes):
             transforms = list()
             for _ in animation.keyframes:
                 transform = Animation.Keyframe.Transform()
+                transform.matrix = node.bind_matrix
                 transforms.append(transform)
             animation.node_keyframe_transforms.append(transforms)
         model.animations.append(animation)
@@ -105,13 +112,15 @@ class ModelStubber(object):
         child_model = ChildModel()
 
         for _ in model.nodes:
+            # This number seems to have no basis on reality, so therefore it's now a teapot.
+            child_model.build_number = 418
             child_model.transforms.append(Animation.Keyframe.Transform())
         model.child_models.append(child_model)
 
         ''' AnimBindings '''
         anim_binding = AnimBinding()
-        anim_binding.name = 'base'
-        animation.extents = Vector((10, 10, 10))
+        anim_binding.name = 'ConvertedFromPS2'
+        anim_binding.origin = Vector((0, 0, 0))
         model.anim_bindings.append(anim_binding)
 
         # Save me some time renaming stuff..

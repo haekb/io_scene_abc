@@ -443,6 +443,7 @@ class PS2LTBModelReader(object):
                 check_for_more_data = False
 
                 #########################################################################
+                # FIXME: This probably isn't needed anymore.
                 # HACK: Skip past any bone information, we're going to be looking for 0.8, 0.8, 0.8!
                 # Skip past the unknown value
                 f.seek(4, 1)
@@ -453,8 +454,7 @@ class PS2LTBModelReader(object):
                 while True:
                     try:
                         hero_eights = [ unpack('f', f)[0], unpack('f', f)[0], unpack('f', f)[0] ]
-                        #print("Value: ", hero_eights)
-                        #print("Close to 0.8? " , math.isclose(hero_eights[0], 0.8, rel_tol=1e-04))
+
                         if math.isclose(hero_eights[0], 0.8, rel_tol=FLOAT_COMPARE) and math.isclose(hero_eights[1], 0.8, rel_tol=FLOAT_COMPARE) and math.isclose(hero_eights[2], 0.8, rel_tol=FLOAT_COMPARE):
                             print("Found 0.8,0.8,0.8")
                             break
@@ -589,7 +589,6 @@ class PS2LTBModelReader(object):
 
                     # For Each MeshSet
 
-
                     # FIXME: This should be correct but it seems to be missing some sets.
                     # Oddly secure to just check for the unknown flag being 128. :thinking:
                     #while running_mesh_set_count < mesh_set_count:
@@ -635,6 +634,9 @@ class PS2LTBModelReader(object):
 
                             vertex = Vertex()
                             
+                            # There's no lods, so no need to keep track of this
+                            vertex.sublod_vertex_index = 0xCDCD
+
                             vertex_data = self._read_vector(f)
                             vertex_padding = unpack('f', f)[0]
                             normal_data = self._read_vector(f)
@@ -756,34 +758,12 @@ class PS2LTBModelReader(object):
                         
                         if unk_sector_finished:
                             break
-                                
-                            
-
-                    #########################################################################
-                    # HACK: There's unknown values after each skeletal mesh piece
-                    # I can't figure out a consistent length for them, but there always 
-                    # seems to be 1 zero int before the known vertex order section.
-                    # So let's skip past that 4 bytes at a time!
-                    
-                    # while True:
-                    #     test_values = unpack('2i', f)
-                    #     if test_values[0] == 0 and test_values[1] != 0:
-                    #         # Hey! We found our section, let's go back a bit so we're in the proper order
-                            
-                    #         f.seek(-4, 1)
-                    #         print("[HACK] Found ordered vertex array at %d" % f.tell())
-                    #         break
-                    #     # Make sure we're only looking 4-bytes at a time.
-                    #     # Gotta offset that second int read!
-                    #     f.seek(-4, 1)
-
-                    # End HACK
-                    #########################################################################
+                                    
 
                     #
                     # Here we want to build a list of ordered vertices. 
                     # After that will come the ordered weights
-                    # We can then do a double loop (oh god so slow)
+                    # We can then do a double loop
                     # that we can add the weights to the already processed verts
                     #
                     ordered_vertices = []
@@ -806,18 +786,10 @@ class PS2LTBModelReader(object):
                         ordered_vertices.append(ov)
                     # End for `vi in range(lod_vertex_count)`
 
-                    
-                    # Also kind of a hack...Skip past the number of bones
-                    #f.seek(4 * node_count, 1)
-
                     # Ok we need to go through and figure out which bones map to which index
                     node_map = []
 
-                    # Skip past the zero int
-                    # f.seek(4, 1)
-
                     print("Currently at %d" % f.tell())
-
 
                     # Go through and capture every int
                     # These are the node indexes
@@ -851,10 +823,6 @@ class PS2LTBModelReader(object):
                             weight.bias = normalized_weights[j]
                             weight.node_index = node_indexes[j]
 
-                            #print("NODE INDEX: ",weight.node_index)
-
-                            # Dangerous, this is assuming the nodes are in proper order.
-                            # I doubt that's universally true, but so far I haven't seen anything that goes against that...
                             if weight.node_index != 0:
                                 weight.node_index /= 4
                                 weight.node_index = int(weight.node_index)
@@ -871,6 +839,11 @@ class PS2LTBModelReader(object):
 
                             if ordered_vertex.location == vertex.location:
                                 lod.vertices[vi].weights = copy.copy(processed_weights)
+
+                                for i in range(len(lod.vertices[vi].weights)):
+                                    lod.vertices[vi].weights[i].location = (ordered_vertex.location @ Matrix())
+
+                                print("Setting vertex weights ! ", lod.vertices[vi].weights[0].__dict__, processed_weights[0].__dict__)
                                 break
                         # End for `vi in range( len(lod.vertices) )`
                     # End for `wi in range(lod_vertex_count)`
@@ -881,16 +854,10 @@ class PS2LTBModelReader(object):
 
                 # Add the piece to the model!
                 model.pieces.append(piece_object) 
-
-
             # End For `piece_index in range( piece_count )`
-
-
 
             print("Final verticies ", len(lod.vertices))
             print("Final faces ", len(lod.faces))
-
-            # Hacky! Handle Vertex Weights
 
             # Let's seek to node offset
             f.seek(node_offset)
@@ -904,43 +871,5 @@ class PS2LTBModelReader(object):
             # Handle Sockets!
             f.seek(socket_offset)
             model.sockets = [self._read_socket(f) for _ in range(socket_count)]
-
-            # section_name = self._read_string(f)
-            # next_section_offset = unpack('i', f)[0]
-            # if section_name == 'Header':
-            #     self._version = unpack('I', f)[0]
-            #     if self._version not in [9, 10, 11, 12]:
-            #         raise Exception('Unsupported file version ({}).'.format(self._version))
-            #     f.seek(8, 1)
-            #     self._node_count = unpack('I', f)[0]
-            #     f.seek(20, 1)
-            #     self._lod_count = unpack('I', f)[0]
-            #     f.seek(4, 1)
-            #     self._weight_set_count = unpack('I', f)[0]
-            #     f.seek(8, 1)
-            #     model.command_string = self._read_string(f)
-            #     model.internal_radius = unpack('f', f)[0]
-            #     f.seek(64, 1)
-            #     model.lod_distances = [unpack('f', f)[0] for _ in range(self._lod_count)]
-            # elif section_name == 'Pieces':
-            #     weight_count, pieces_count = unpack('2I', f)
-            #     model.pieces = [self._read_piece(f) for _ in range(pieces_count)]
-            # elif section_name == 'Nodes':
-            #     model.nodes = [self._read_node(f) for _ in range(self._node_count)]
-            #     build_undirected_tree(model.nodes)
-            #     weight_set_count = unpack('I', f)[0]
-            #     model.weight_sets = [self._read_weight_set(f) for _ in range(weight_set_count)]
-            # elif section_name == 'ChildModels':
-            #     child_model_count = unpack('H', f)[0]
-            #     model.child_models = [self._read_child_model(f) for _ in range(child_model_count)]
-            # elif section_name == 'Animation':
-            #     animation_count = unpack('I', f)[0]
-            #     model.animations = [self._read_animation(f) for _ in range(animation_count)]
-            # elif section_name == 'Sockets':
-            #     socket_count = unpack('I', f)[0]
-            #     model.sockets = [self._read_socket(f) for _ in range(socket_count)]
-            # elif section_name == 'AnimBindings':
-            #     anim_binding_count = unpack('I', f)[0]
-            #     model.anim_bindings = [self._read_anim_binding(f) for _ in range(anim_binding_count)]
 
         return model
