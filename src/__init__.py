@@ -34,6 +34,7 @@ from . import builder
 from . import reader_abc_pc
 from . import reader_ltb_ps2
 from . import writer_abc_pc
+from . import writer_lta_pc
 from . import importer
 from . import exporter
 from . import converter
