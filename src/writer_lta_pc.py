@@ -32,6 +32,10 @@ class LTANode(object):
     def create_property(self, value=''):
         return self.create_child('', value)
 
+    # Container is just an empty set of braces
+    def create_container(self):
+        return self.create_child('', None)
+
     def create_child(self, name, attribute=None):
         node = LTANode(name, attribute)
 
@@ -369,6 +373,65 @@ class LTAModelWriter(object):
             pc_material_node.create_child('specular-scale', piece.specular_scale)
             pc_material_node.create_child('texture-index', piece.material_index)
         # End For
+
+        ##########################################################
+        # ANIMATIONS
+        ##########################################################
+        
+        for animation in model.animations:
+            as_node = root_node.create_child('animset', animation.name)
+
+
+            for keyframe in animation.keyframes:
+                # Nested keyframe nodes..I didn't build this spec, but I can sure give it a look.
+                keyframe_node = as_node.create_child('keyframe')
+                keyframe2_node = keyframe_node.create_child('keyframe')
+
+                times_node = keyframe2_node.create_child('times')
+                values_node = keyframe2_node.create_child('values')
+
+                # Keyframe timing
+                times_list = []
+                # Keyframe strings
+                values_list = []
+
+                for keyframe in animation.keyframes:
+                    times_list.append( keyframe.time )
+
+                    if keyframe.string is None:
+                        keyframe.string = ""
+
+                    values_list.append( keyframe.string )
+                # End For
+
+                # Append the properties!
+                times_node.create_property( times_list )
+                values_node.create_property( values_list ) 
+            # End For
+
+            anims_node = as_node.create_child('anims')
+
+            for i, node_keyframe_transform_list in enumerate(animation.node_keyframe_transforms):
+                anim_node = anims_node.create_child('anim')
+                anim_node.create_child('parent', model.nodes[i].name)
+
+                frames_node = anim_node.create_child('frames')
+
+                # Position / Quaternion
+                posquat_node = frames_node.create_child('posquat')
+
+                # Unlike every other property, each transform is it's own prop
+                for keyframe_transform in node_keyframe_transform_list:
+
+                    # Each transform seems to have its own empty wrapper
+                    container_node = posquat_node.create_container()
+
+                    container_node.create_property( keyframe_transform.location )
+                    container_node.create_property( keyframe_transform.rotation )
+                # End For
+            # End For
+        # End For
+
 
         ##########################################################
         # WRITE TO FILE
