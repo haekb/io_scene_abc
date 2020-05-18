@@ -321,6 +321,54 @@ class LTAModelWriter(object):
         h_node = root_node.create_child('hierarchy')
         write_node_recursively(h_node, model, 0)
 
+        ##########################################################
+        # GEOMETRY
+        ##########################################################
+
+        for piece in model.pieces:
+            p_node = root_node.create_child('shape', piece.name)
+            geometry_node = p_node.create_child('geometry')
+            mesh_node = geometry_node.create_child('mesh', piece.name)
+
+            vertex_node = mesh_node.create_child('vertex')
+            normal_node = mesh_node.create_child('normals')
+            uv_node = mesh_node.create_child('uvs')
+
+            tex_fs_node = mesh_node.create_child('tex-fs')
+            tri_fs_node = mesh_node.create_child('tri-fs')
+
+            # For both tex and tri fs. Because I don't know why they'd be different..
+            index_list = []
+
+            for lod in piece.lods:
+
+                for face in lod.faces:
+                    for face_vertex in face.vertices:
+                        texcoords = [ face_vertex.texcoord.x, face_vertex.texcoord.y ]
+                        uv_node.create_property( texcoords )
+
+                        index_list.append( face_vertex.vertex_index )
+                # End For
+
+                for vertex in lod.vertices:
+                    vertex_node.create_property( vertex.location )
+                    normal_node.create_property( vertex.normal )
+                # End For
+            # End For
+
+            # Okay now add the prop list
+            tri_fs_node.create_property( index_list )
+            tex_fs_node.create_property( index_list )
+
+            # Okay let's deal with Lithtech 2.1/Talon appearence node
+            appearance_node = p_node.create_child('appearance')
+
+            pc_material_node = appearance_node.create_child('pc-mat')
+
+            pc_material_node.create_child('specular-power', piece.specular_power)
+            pc_material_node.create_child('specular-scale', piece.specular_scale)
+            pc_material_node.create_child('texture-index', piece.material_index)
+        # End For
 
         ##########################################################
         # WRITE TO FILE
