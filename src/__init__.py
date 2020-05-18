@@ -21,6 +21,7 @@ if 'bpy' in locals():
     if 'reader_abc_pc'      in locals(): importlib.reload(reader_abc_pc)
     if 'reader_ltb_ps2'     in locals(): importlib.reload(reader_ltb_ps2)
     if 'writer_abc_pc'      in locals(): importlib.reload(writer_abc_pc)
+    if 'writer_lta_pc'      in locals(): importlib.reload(writer_lta_pc)
     if 'importer'           in locals(): importlib.reload(importer)
     if 'exporter'           in locals(): importlib.reload(exporter)
     if 'converter'          in locals(): importlib.reload(converter)
@@ -43,6 +44,7 @@ classes = (
     importer.ImportOperatorABC,
     importer.ImportOperatorLTB,
     exporter.ExportOperatorABC,
+    exporter.ExportOperatorLTA,
     converter.ConvertLTBToABC,
 )
 
@@ -56,6 +58,7 @@ def register():
 
     # Export options
     bpy.types.TOPBAR_MT_file_export.append(exporter.ExportOperatorABC.menu_func_export)
+    bpy.types.TOPBAR_MT_file_export.append(exporter.ExportOperatorLTA.menu_func_export)
 
 
 def unregister():
@@ -68,4 +71,4 @@ def unregister():
 
     # Export options
     bpy.types.TOPBAR_MT_file_export.remove(exporter.ExportOperatorABC.menu_func_export)
-
+    bpy.types.TOPBAR_MT_file_export.remove(exporter.ExportOperatorLTA.menu_func_export)
