@@ -151,6 +151,36 @@ class LTANode(object):
         # End For
 
         return output_string
+# End Class
+
+# Nodes are nested for as many children they have
+# so it's easier to handle this in its own class.
+class NodeWriter(object):
+    def __init__(self):
+        self._index = 0
+
+    # Simply create a "children" node.
+    def create_children_node(self, root_node):
+        children_node = root_node.create_child('children')
+        return children_node.create_container()
+
+    def write_node_recursively(self, root_node, model):
+        model_node = model.nodes[self._index]
+
+        transform_node = root_node.create_child('transform', model_node.name)
+        transform_node.create_child('matrix').create_property(model_node.bind_matrix)
+
+        if model_node.child_count == 0:
+            return
+        # End If
+
+        children_container_node = self.create_children_node(transform_node)
+
+        for _ in range(model_node.child_count):
+            self._index += 1
+            self.write_node_recursively(children_container_node, model)
+        # End For
+# End Class
 
 class LTAModelWriter(object):
 
@@ -308,25 +338,11 @@ class LTAModelWriter(object):
         # NODES
         ##########################################################
 
-        # This is...a little extra, nodes are nested!
-        def write_node_recursively(root_node, model, index):
-            model_node = model.nodes[index]
-
-            children_node = root_node.create_child('children')
-            container_node = children_node.create_container()
-            transform_node = container_node.create_child('transform', model_node.name)
-            transform_node.create_child('matrix').create_property(model_node.bind_matrix)
-
-            for i in range(model_node.child_count):
-                # i is 0 based...
-                child_index = index + i + 1
-
-                write_node_recursively(transform_node, model, child_index)
-
-        # End Def
-
         h_node = root_node.create_child('hierarchy')
-        write_node_recursively(h_node, model, 0)
+
+        # Let NodeWriter handle it!
+        node_writer = NodeWriter()
+        node_writer.write_node_recursively(node_writer.create_children_node(h_node), model)
 
         ##########################################################
         # GEOMETRY
@@ -449,9 +465,10 @@ class LTAModelWriter(object):
         ##########################################################
         
         with open(path, 'w') as f:
+            print("Serializing node list...")
             s_root_node = root_node.serialize()
-            print("Serialized String")
             f.write(s_root_node)
+            print("Finished serializing node list!")
 
         # ''' AnimBindings '''
         # buffer = bytearray()
