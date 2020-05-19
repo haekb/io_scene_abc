@@ -46,7 +46,7 @@ classes = (
     importer.ImportOperatorLTB,
     exporter.ExportOperatorABC,
     exporter.ExportOperatorLTA,
-    converter.ConvertLTBToABC,
+    converter.ConvertLTBToLTA,
 )
 
 def register():
