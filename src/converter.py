@@ -15,13 +15,13 @@ from .utils import show_message_box
 from .abc import *
 
 from .reader_ltb_ps2 import PS2LTBModelReader
-from .writer_abc_pc import ABCModelWriter
+from .writer_lta_pc import LTAModelWriter
 
 
-class ConvertLTBToABC(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
+class ConvertLTBToLTA(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     """This appears in the tooltip of the operator and in the generated docs"""
     bl_idname = 'io_scene_lithtech.ltb_convert'  # important since its how bpy.ops.import_test.some_data is constructed
-    bl_label = 'Convert Lithtech PS2 LTB to ABC'
+    bl_label = 'Convert Lithtech PS2 LTB to LTA'
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
 
@@ -44,17 +44,17 @@ class ConvertLTBToABC(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
         model = stubber.execute(model)
 
         ltb_path = self.filepath
-        abc_path = self.filepath.replace('ltb', 'abc')
+        lta_path = self.filepath.replace('ltb', 'lta')
 
-        print ("Converting %s to %s" % (ltb_path, abc_path) )
+        print ("Converting %s to %s" % (ltb_path, lta_path) )
 
-        ABCModelWriter().write(model, abc_path)
+        LTAModelWriter().write(model, lta_path)
 
         return {'FINISHED'}
 
     @staticmethod
     def menu_func_import(self, context):
-        self.layout.operator(ConvertLTBToABC.bl_idname, text='Convert PS2 LTB to ABC.')
+        self.layout.operator(ConvertLTBToLTA.bl_idname, text='Convert PS2 LTB to LTA.')
 
 class ModelStubber(object):
     def execute(self, model):
