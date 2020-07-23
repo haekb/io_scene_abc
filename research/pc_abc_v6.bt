@@ -87,7 +87,35 @@ struct Geometry {
     Vertex VertexInfo[NumVerts];
 };
 
+struct Nodes {
+    LTVector BoundsMin;
+    LTVector BoundsMax;
+    LTString NodeName;
+    ushort TransformationIndex;
+    uchar Flags;
+    uint NumMDVerts; // number of vertices for mesh-deformed nodes / usually "0"
+    ushort MDVertList[NumMDVerts];
+    uint NumChildren;
+    //Nodes Children[NumChildren];
+};
+
 Section hdrSection;
 Header hdr;
 Section geoSection;
 Geometry geo;
+Section nodesSection;
+
+// Nodes are depth-first ordered
+// Keep track of the running total of children, 
+// once we run out we can exit the loop!
+local int nChildrenLeft = 1;
+while (true)
+{
+    nChildrenLeft--;
+    Nodes node;
+    nChildrenLeft += node.NumChildren;
+    if (nChildrenLeft == 0)
+    {
+        break;
+    }
+}
