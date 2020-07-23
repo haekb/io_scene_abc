@@ -87,6 +87,10 @@ struct Geometry {
     Vertex VertexInfo[NumVerts];
 };
 
+//
+// NODE INFO
+//
+
 struct Nodes {
     LTVector BoundsMin;
     LTVector BoundsMax;
@@ -99,6 +103,46 @@ struct Nodes {
     //Nodes Children[NumChildren];
 };
 
+//
+// ANIMATION INFO
+//
+struct NodeKeyFrame {
+    LTVector Translation;
+    LTRotation Rotation;
+};
+
+struct NodeAnim (uint NumKeyframers) {
+    NodeKeyFrame NodeKeyFrameData[NumKeyframers];
+    LTVector Unk1;
+    LTVector Unk2;
+};
+
+struct KeyFrameInfo {
+    uint TimeIndex;
+    LTVector BoundsMin;
+    LTVector BoundsMax;
+    LTString FrameString;
+};
+
+struct AnimInfo (int NumNodes) {
+    LTString AnimName;
+    uint Length;
+    LTVector BoundsMin;
+    LTVector BoundsMax;
+    uint NumKeyframers;
+    KeyFrameInfo KeyframeData[NumKeyframers];
+    NodeAnim NodeAnimData(NumKeyframers)[NumNodes];
+};
+
+struct Animation (int NumNodes) {
+    uint NumAnims;
+    AnimInfo AnimData(NumNodes)[NumAnims];
+};
+
+//
+// LET'S GO!
+//
+
 Section hdrSection;
 Header hdr;
 Section geoSection;
@@ -108,9 +152,11 @@ Section nodesSection;
 // Nodes are depth-first ordered
 // Keep track of the running total of children, 
 // once we run out we can exit the loop!
+local int nTotalNodes = 0;
 local int nChildrenLeft = 1;
 while (true)
 {
+    nTotalNodes++;
     nChildrenLeft--;
     Nodes node;
     nChildrenLeft += node.NumChildren;
@@ -119,3 +165,6 @@ while (true)
         break;
     }
 }
+
+Section animationSection;
+Animation animation(nTotalNodes);

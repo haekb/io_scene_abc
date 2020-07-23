@@ -170,21 +170,29 @@ class ABCV6ModelReader(object):
     def _read_keyframe(self, f):
         keyframe = Animation.Keyframe()
         keyframe.time = unpack('I', f)[0]
+        bounds_min = self._read_vector(f)
+        bounds_max = self._read_vector(f)
         keyframe.string = self._read_string(f)
         return keyframe
 
     def _read_animation(self, f):
+
         animation = Animation()
-        animation.extents = self._read_vector(f)
         animation.name = self._read_string(f)
-        animation.unknown1 = unpack('i', f)[0]
-        animation.interpolation_time = unpack('I', f)[0] if self._version >= 12 else 200
+        animation_length = unpack('I', f)[0]
+        bounds_min = self._read_vector(f)
+        bounds_max = self._read_vector(f)
+
+        # ?
+        animation.extents = bounds_max
+
         animation.keyframe_count = unpack('I', f)[0]
         animation.keyframes = [self._read_keyframe(f) for _ in range(animation.keyframe_count)]
-        animation.node_keyframe_transforms = []
         for _ in range(self._node_count):
-            animation.node_keyframe_transforms.append(
-                [self._read_transform(f) for _ in range(animation.keyframe_count)])
+            animation.node_keyframe_transforms.append( [self._read_transform(f) for _ in range(animation.keyframe_count)] )
+            unk_1 = self._read_vector(f)
+            unk_2 = self._read_vector(f)
+
         return animation
 
     def _read_socket(self, f):
@@ -241,6 +249,10 @@ class ABCV6ModelReader(object):
                     # once it hits zero, we can exit.
                     children_left = 1
                     while children_left != 0:
+                        # increment our node count!
+                        self._node_count += 1
+
+
                         children_left -= 1
                         node = self._read_node(f)
                         children_left += node.child_count
@@ -250,9 +262,9 @@ class ABCV6ModelReader(object):
                 # End
 
                 # Animation Section
-                #elif section_name == 'Animation':
-                #    animation_count = unpack('I', f)[0]
-                #    model.animations = [self._read_animation(f) for _ in range(animation_count)]
+                elif section_name == 'Animation':
+                    animation_count = unpack('I', f)[0]
+                    model.animations = [self._read_animation(f) for _ in range(animation_count)]
 
                 #elif section_name == 'AnimBindings':
                 #    anim_binding_count = unpack('I', f)[0]
