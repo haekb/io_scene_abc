@@ -12,6 +12,13 @@
 //------------------------------------------------
 
 //
+// Node Flags:
+// 1 = NULL
+// 2 = Rigid (Skeletal)
+// 6 = Deformation (Vertex Animation)
+// 
+
+//
 // GLOBAL HELPERS
 //
 struct LTString {
@@ -76,9 +83,7 @@ struct Vertex {
 struct Geometry {
     LTVector BoundsMin;
     LTVector BoundsMax;
-    //short _FILLER;
     uint NumLODS;
-    //short _FILLER;
     ushort VertexStartNum[NumLODS+1];
     uint NumTris;
     Triangle FaceInfo[NumTris];
@@ -100,12 +105,15 @@ struct Nodes {
     uint NumMDVerts; // number of vertices for mesh-deformed nodes / usually "0"
     ushort MDVertList[NumMDVerts];
     uint NumChildren;
-    //Nodes Children[NumChildren];
 };
 
 //
 // ANIMATION INFO
 //
+struct NodeDeformationFrame {
+    LTVector Position;
+};
+
 struct NodeKeyFrame {
     LTVector Translation;
     LTRotation Rotation;
@@ -113,8 +121,13 @@ struct NodeKeyFrame {
 
 struct NodeAnim (uint NumKeyframers) {
     NodeKeyFrame NodeKeyFrameData[NumKeyframers];
+
+    // These might not be here for deformation nodes
     LTVector Unk1;
     LTVector Unk2;
+
+    // If Deformation Node then has vertex positions
+    // Length is Node.NumMDVerts * NumKeyFramers * 3 (Vector Size)
 };
 
 struct KeyFrameInfo {
@@ -130,13 +143,20 @@ struct AnimInfo (int NumNodes) {
     LTVector BoundsMin;
     LTVector BoundsMax;
     uint NumKeyframers;
-    KeyFrameInfo KeyframeData[NumKeyframers];
-    NodeAnim NodeAnimData(NumKeyframers)[NumNodes];
+    KeyFrameInfo KeyframeData[NumKeyframers] <optimize=false>;
+    NodeAnim NodeAnimData(NumKeyframers)[NumNodes] <optimize=false>;
 };
 
 struct Animation (int NumNodes) {
     uint NumAnims;
-    AnimInfo AnimData(NumNodes)[NumAnims];
+    AnimInfo AnimData(NumNodes)[NumAnims] <optimize=false>;
+};
+
+//
+// ANIMATION DIMS INFO
+//
+struct AnimDims (int NumAnims) {
+    LTVector Dimensions[NumAnims];
 };
 
 //
@@ -168,3 +188,16 @@ while (true)
 
 Section animationSection;
 Animation animation(nTotalNodes);
+
+// Deformation Node example:
+// Hack for cat.abc, uncomment when loading cat.abc!
+// 
+/*
+local int nVertexPos = node[3].NumMDVerts;
+local int nKeyframes = animation.AnimData[0].NumKeyframers;
+// 4*3 is the length of LTVector in bytes
+NodeDeformationFrame vertexAnimation[(nVertexPos * nKeyframes * 3) / (4*3)];
+*/
+
+Section animationDimsSection;
+AnimDims animDims(animation.NumAnims);
