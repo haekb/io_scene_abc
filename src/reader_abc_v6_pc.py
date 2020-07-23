@@ -11,6 +11,10 @@ import copy
 class ABCV6ModelReader(object):
     def __init__(self):
         self._version_constant = "MonolithExport Model File v6"
+        # Node Flags
+        self._flag_null = 1
+        self._flag_rigid = 2 # Skeletal
+        self._flag_deformation = 6 # Vertex Animated
 
         # Version is actually a string in this format
         # it should always equal `self._version_constant`
@@ -52,6 +56,8 @@ class ABCV6ModelReader(object):
         vertex.normal.z = vertex_normal_chars[2]
 
         weight = Weight()
+
+        # It seems "pieces" are split by node index..
         weight.node_index = unpack('b', f)[0]
         weight.bias = 1.0
 
@@ -142,6 +148,8 @@ class ABCV6ModelReader(object):
         bounds_min = self._read_vector(f)
         bounds_max = self._read_vector(f)
 
+        # Bind matrix is set after we read in animations!
+
         node.name = self._read_string(f)
         node.index = unpack('H', f)[0]
         node.flags = unpack('b', f)[0]
@@ -194,28 +202,6 @@ class ABCV6ModelReader(object):
             unk_2 = self._read_vector(f)
 
         return animation
-
-    def _read_socket(self, f):
-        socket = Socket()
-        socket.node_index = unpack('I', f)[0]
-        socket.name = self._read_string(f)
-        socket.rotation = self._read_quaternion(f)
-        socket.location = self._read_vector(f)
-        return socket
-
-    def _read_anim_binding(self, f):
-        anim_binding = AnimBinding()
-        anim_binding.name = self._read_string(f)
-        anim_binding.extents = self._read_vector(f)
-        anim_binding.origin = self._read_vector(f)
-        return anim_binding
-
-    def _read_weight_set(self, f):
-        weight_set = WeightSet()
-        weight_set.name = self._read_string(f)
-        node_count = unpack('I', f)[0]
-        weight_set.node_weights = [unpack('f', f)[0] for _ in range(node_count)]
-        return weight_set
 
     def from_file(self, path):
         model = Model()
@@ -271,4 +257,32 @@ class ABCV6ModelReader(object):
                 #    model.anim_bindings = [self._read_anim_binding(f) for _ in range(anim_binding_count)]
 
                 # Animation Dims Section
+        
+        # Okay we're going to use the first animation's location and rotation data for our node's bind_matrix
+        for node_index in range(len(model.nodes)):
+            node = model.nodes[node_index]
+            reference_transform = model.animations[0].node_keyframe_transforms[node_index][0]
+
+            mat_rot = reference_transform.rotation.to_matrix()
+            mat_loc = Matrix.Translation(reference_transform.location)
+            mat = mat_loc @ mat_rot.to_4x4()
+
+            parent_matrix = Matrix()
+
+            if node.parent:
+                parent_matrix = node.parent.bind_matrix
+
+            # Apply it!
+            node.bind_matrix = parent_matrix @ mat
+
+        # Ok now we're going to apply out mesh offset
+        for vert in model.pieces[0].lods[0].vertices:
+            node_index = vert.weights[0].node_index
+
+            vert.location += model.nodes[node_index].bind_matrix.to_translation()
+
+
+
+        # End
+
         return model
