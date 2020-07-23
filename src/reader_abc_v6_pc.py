@@ -137,12 +137,21 @@ class ABCV6ModelReader(object):
 
     def _read_node(self, f):
         node = Node()
+
+        # These may be needed to calculate the position...
+        bounds_min = self._read_vector(f)
+        bounds_max = self._read_vector(f)
+
         node.name = self._read_string(f)
         node.index = unpack('H', f)[0]
         node.flags = unpack('b', f)[0]
-        node.bind_matrix = self._read_matrix(f)
-        node.inverse_bind_matrix = node.bind_matrix.inverted()
+
+        # Vertex animations I think!
+        num_md_verts = unpack('I', f)[0]
+        md_vert_list = [unpack('H', f)[0] for _ in range(num_md_verts)]
+
         node.child_count = unpack('I', f)[0]
+
         return node
 
     def _read_transform(self, f):
@@ -225,11 +234,20 @@ class ABCV6ModelReader(object):
                     model.pieces = [ self._read_piece(f) ]
 
                 # Node Section
-                #elif section_name == 'Nodes':
-                #    model.nodes = [self._read_node(f) for _ in range(self._node_count)]
-                #    build_undirected_tree(model.nodes)
-                #    weight_set_count = unpack('I', f)[0]
-                #    model.weight_sets = [self._read_weight_set(f) for _ in range(weight_set_count)]
+                elif section_name == 'Nodes':
+
+                    # Depth first ordered,
+                    # Just keep track of a running total of children
+                    # once it hits zero, we can exit.
+                    children_left = 1
+                    while children_left != 0:
+                        children_left -= 1
+                        node = self._read_node(f)
+                        children_left += node.child_count
+                        model.nodes.append(node)
+
+                    build_undirected_tree(model.nodes)
+                # End
 
                 # Animation Section
                 #elif section_name == 'Animation':
