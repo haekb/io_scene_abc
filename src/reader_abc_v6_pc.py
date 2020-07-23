@@ -3,13 +3,24 @@ from .abc import *
 from .io import unpack
 from mathutils import Vector, Matrix, Quaternion
 
-
-class ABCModelReader(object):
+#
+# ABC Model Format Version 6 
+# Spec: https://web.archive.org/web/20170905023149/http://www.bop-mod.com/download/docs/LithTech-ABC-v6-File-Format.html
+#
+class ABCV6ModelReader(object):
     def __init__(self):
-        self._version = 0
+        self._version_constant = "MonolithExport Model File v6"
+
+        # Version is actually a string in this format
+        # it should always equal `self._version_constant`
+        self._version = ""
         self._node_count = 0
         self._lod_count = 0
 
+    #
+    # Helpers
+    # TODO: Move to utils
+    # 
     def _read_matrix(self, f):
         data = unpack('16f', f)
         rows = [data[0:4], data[4:8], data[8:12], data[12:16]]
@@ -25,51 +36,90 @@ class ABCModelReader(object):
     def _read_string(self, f):
         return f.read(unpack('H', f)[0]).decode('ascii')
 
-    def _read_weight(self, f):
-        weight = Weight()
-        weight.node_index = unpack('I', f)[0]
-        weight.location = self._read_vector(f)
-        weight.bias = unpack('f', f)[0]
-        return weight
+    #
+    # Format Specific
+    # 
 
     def _read_vertex(self, f):
         vertex = Vertex()
-        weight_count = unpack('H', f)[0]
-        vertex.sublod_vertex_index = unpack('H', f)[0]
-        vertex.weights = [self._read_weight(f) for _ in range(weight_count)]
         vertex.location = self._read_vector(f)
-        vertex.normal = self._read_vector(f)
+
+        vertex_normal_chars = unpack('3b', f)
+
+        vertex.normal.x = vertex_normal_chars[0]
+        vertex.normal.y = vertex_normal_chars[1]
+        vertex.normal.z = vertex_normal_chars[2]
+
+        vertex.sublod_vertex_index = unpack('b', f)[0]
+
+        # Jake: From the notes...
+        # indices of the model vertices that this vertex replaces -- only really used for 'extra' vertices:  vertices that got added for extra LODs
+        vertex_replacements = unpack('2H', f)
+
         return vertex
 
     def _read_face_vertex(self, f):
-        face_vertex = FaceVertex()
-        face_vertex.texcoord.xy = unpack('2f', f)
-        face_vertex.vertex_index = unpack('H', f)[0]
-        return face_vertex
+        face_vertex_list = [FaceVertex(), FaceVertex(), FaceVertex()]
+
+        face_vertex_list[0].texcoord.xy = unpack('2f', f)
+        face_vertex_list[1].texcoord.xy = unpack('2f', f)
+        face_vertex_list[2].texcoord.xy = unpack('2f', f)
+
+        face_vertex_list[0].vertex_index = unpack('H', f)[0]
+        face_vertex_list[1].vertex_index = unpack('H', f)[0]
+        face_vertex_list[2].vertex_index = unpack('H', f)[0]
+
+        # Jake: Not needed?
+        face_normal = unpack('3b', f)
+
+        return face_vertex_list
 
     def _read_face(self, f):
         face = Face()
-        face.vertices = [self._read_face_vertex(f) for _ in range(3)]
+        face.vertices = self._read_face_vertex(f)
         return face
 
+    # TODO: Figure out how to extract LOD info
     def _read_lod(self, f):
+
         lod = LOD()
         face_count = unpack('I', f)[0]
         lod.faces = [self._read_face(f) for _ in range(face_count)]
         vertex_count = unpack('I', f)[0]
+
+        # Non-LOD vertex count
+        normal_count = unpack('I', f)[0]
         lod.vertices = [self._read_vertex(f) for _ in range(vertex_count)]
         return lod
 
+    # Note: Only ever 1 piece
     def _read_piece(self, f):
         piece = Piece()
-        piece.material_index = unpack('H', f)[0]
-        piece.specular_power = unpack('f', f)[0]
-        piece.specular_scale = unpack('f', f)[0]
-        if self._version > 9:
-            piece.lod_weight = unpack('f', f)[0]
-        piece.padding = unpack('H', f)[0]
-        piece.name = self._read_string(f)
-        piece.lods = [self._read_lod(f) for _ in range(self._lod_count)]
+        piece.material_index = 0
+        piece.specular_power = 0
+        piece.specular_scale = 1
+        piece.name = "Piece"
+
+
+        pos = f.tell()
+
+        # Jake: Where do I stick these? hmmm
+        bounds_min = self._read_vector(f)
+        bounds_max = self._read_vector(f)
+        #pos = f.tell()
+
+        self._lod_count = unpack('I', f)[0]
+
+        #pos = f.tell()
+
+        padding = unpack('H', f)[0]
+
+        vertex_start_number = [ unpack('H', f)[0] for _ in range(self._lod_count) ]
+
+        # For now, everything is one lod
+        piece.lods = [ self._read_lod(f) ]
+        #piece.lods = [self._read_lod(f) for _ in range(self._lod_count)]
+
         return piece
 
     def _read_node(self, f):
@@ -146,40 +196,36 @@ class ABCModelReader(object):
                 f.seek(next_section_offset)
                 section_name = self._read_string(f)
                 next_section_offset = unpack('i', f)[0]
+
+                # Header Section
                 if section_name == 'Header':
-                    self._version = unpack('I', f)[0]
-                    if self._version not in [9, 10, 11, 12]:
-                        raise Exception('Unsupported file version ({}).'.format(self._version))
-                    model.version = self._version
-                    f.seek(8, 1)
-                    self._node_count = unpack('I', f)[0]
-                    f.seek(20, 1)
-                    self._lod_count = unpack('I', f)[0]
-                    f.seek(4, 1)
-                    self._weight_set_count = unpack('I', f)[0]
-                    f.seek(8, 1)
+
+                    self._version = self._read_string(f)
+                    if self._version != self._version_constant:
+                        raise Exception('Not a version 6 abc file! ({}).'.format(self._version))
+
+                    model.version = 6
                     model.command_string = self._read_string(f)
-                    model.internal_radius = unpack('f', f)[0]
-                    f.seek(64, 1)
-                    model.lod_distances = [unpack('f', f)[0] for _ in range(self._lod_count)]
-                elif section_name == 'Pieces':
-                    weight_count, pieces_count = unpack('2I', f)
-                    model.pieces = [self._read_piece(f) for _ in range(pieces_count)]
-                elif section_name == 'Nodes':
-                    model.nodes = [self._read_node(f) for _ in range(self._node_count)]
-                    build_undirected_tree(model.nodes)
-                    weight_set_count = unpack('I', f)[0]
-                    model.weight_sets = [self._read_weight_set(f) for _ in range(weight_set_count)]
-                elif section_name == 'ChildModels':
-                    child_model_count = unpack('H', f)[0]
-                    model.child_models = [self._read_child_model(f) for _ in range(child_model_count)]
-                elif section_name == 'Animation':
-                    animation_count = unpack('I', f)[0]
-                    model.animations = [self._read_animation(f) for _ in range(animation_count)]
-                elif section_name == 'Sockets':
-                    socket_count = unpack('I', f)[0]
-                    model.sockets = [self._read_socket(f) for _ in range(socket_count)]
-                elif section_name == 'AnimBindings':
-                    anim_binding_count = unpack('I', f)[0]
-                    model.anim_bindings = [self._read_anim_binding(f) for _ in range(anim_binding_count)]
+
+                # Geometry Section
+                elif section_name == 'Geometry':
+                    model.pieces = [ self._read_piece(f) ]
+
+                # Node Section
+                #elif section_name == 'Nodes':
+                #    model.nodes = [self._read_node(f) for _ in range(self._node_count)]
+                #    build_undirected_tree(model.nodes)
+                #    weight_set_count = unpack('I', f)[0]
+                #    model.weight_sets = [self._read_weight_set(f) for _ in range(weight_set_count)]
+
+                # Animation Section
+                #elif section_name == 'Animation':
+                #    animation_count = unpack('I', f)[0]
+                #    model.animations = [self._read_animation(f) for _ in range(animation_count)]
+
+                #elif section_name == 'AnimBindings':
+                #    anim_binding_count = unpack('I', f)[0]
+                #    model.anim_bindings = [self._read_anim_binding(f) for _ in range(anim_binding_count)]
+
+                # Animation Dims Section
         return model

@@ -170,6 +170,7 @@ class ChildModel(object):
 
 class Model(object):
     def __init__(self):
+        self.version = 0
         self.name = ''
         self.pieces = []
         self.nodes = []

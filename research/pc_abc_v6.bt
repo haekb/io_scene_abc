@@ -1,0 +1,93 @@
+//------------------------------------------------
+//--- 010 Editor v10.0.1 Binary Template
+//
+//      File: 
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: 
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+
+//
+// GLOBAL HELPERS
+//
+struct LTString {
+    short stringLength;
+    char Type[stringLength];
+};
+
+struct LTNormal {
+    char x,y,z;
+};
+
+struct LTUVPair {
+    float u,v;
+};
+
+struct LTVector {
+    float x,y,z;
+};
+
+struct LTRotation {
+    float x,y,z,w;
+};
+
+//
+// SECTION INFO
+//
+struct Section {
+    LTString ChunkName;
+    uint NextChunkLocation;
+};
+
+
+//
+// HEADER INFO
+// 
+struct Header {
+    LTString FileToken;
+    LTString CommandString;
+};
+
+//
+// GEOMETRY INFO
+// 
+struct Triangle {
+    LTUVPair TexCoords1;
+    LTUVPair TexCoords2;
+    LTUVPair TexCoords3;
+    ushort VertexIndex1;
+    ushort VertexIndex2;
+    ushort VertexIndex3;
+    LTNormal FaceNormal;
+};
+
+struct Vertex {
+    LTVector Position;
+    LTNormal VertexNormal;
+    uchar TransformationIndex;
+    ushort Replacements[2];
+};
+
+
+struct Geometry {
+    LTVector BoundsMin;
+    LTVector BoundsMax;
+    //short _FILLER;
+    uint NumLODS;
+    ushort VertexStartNum[NumLODS];
+    short _FILLER;
+    uint NumTris;
+    Triangle FaceInfo[NumTris];
+    uint NumVerts;
+    uint NormalVerts;
+    Vertex VertexInfo[NumVerts];
+};
+
+Section hdrSection;
+Header hdr;
+Section geoSection;
+Geometry geo;

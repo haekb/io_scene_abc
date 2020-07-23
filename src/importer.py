@@ -10,6 +10,7 @@ from .dtx import DTX
 from .utils import show_message_box
 
 # Format imports
+from .reader_abc_v6_pc import ABCV6ModelReader
 from .reader_abc_pc import ABCModelReader
 from .reader_ltb_ps2 import PS2LTBModelReader
 
@@ -520,7 +521,11 @@ class ImportOperatorABC(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 
     def execute(self, context):
         # Load the model
-        model = ABCModelReader().from_file(self.filepath)
+        try:
+            model = ABCModelReader().from_file(self.filepath)
+        except Exception as e:
+            model = ABCV6ModelReader().from_file(self.filepath)
+
         model.name = os.path.splitext(os.path.basename(self.filepath))[0]
         image = None
         if self.should_import_textures:
