@@ -2,6 +2,7 @@ import os
 from .abc import *
 from .io import unpack
 from mathutils import Vector, Matrix, Quaternion
+import copy
 
 #
 # ABC Model Format Version 6 
@@ -82,15 +83,34 @@ class ABCV6ModelReader(object):
     # TODO: Figure out how to extract LOD info
     def _read_lod(self, f):
 
-        lod = LOD()
+        vertex_start_number = [ unpack('H', f)[0] for _ in range(self._lod_count + 1) ]
+
+        lod_list = []
+
+        main_lod = LOD()
         face_count = unpack('I', f)[0]
-        lod.faces = [self._read_face(f) for _ in range(face_count)]
+        main_lod.faces = [self._read_face(f) for _ in range(face_count)]
         vertex_count = unpack('I', f)[0]
 
         # Non-LOD vertex count
         normal_count = unpack('I', f)[0]
-        lod.vertices = [self._read_vertex(f) for _ in range(vertex_count)]
-        return lod
+
+        # FIXME: I can't figure out how the face data relates to LODs, so let's just load the top LOD for now!
+        for i in range(self._lod_count + 1):
+            lod = LOD()
+
+            if (i == self._lod_count):
+                count = normal_count
+            else:
+                continue
+                #count = vertex_start_number[i + 1] - vertex_start_number[i]
+
+            lod.faces = copy.deepcopy(main_lod.faces)
+            lod.vertices = [self._read_vertex(f) for _ in range(count)]
+
+            lod_list.append(lod)
+
+        return lod_list
 
     # Note: Only ever 1 piece
     def _read_piece(self, f):
@@ -112,12 +132,17 @@ class ABCV6ModelReader(object):
 
         #pos = f.tell()
 
-        padding = unpack('H', f)[0]
+        #vertex_start_number = [ unpack('H', f)[0] for _ in range(self._lod_count) ]
 
-        vertex_start_number = [ unpack('H', f)[0] for _ in range(self._lod_count) ]
+        
 
         # For now, everything is one lod
-        piece.lods = [ self._read_lod(f) ]
+        piece.lods = self._read_lod(f)
+
+
+
+
+
         #piece.lods = [self._read_lod(f) for _ in range(self._lod_count)]
 
         return piece
