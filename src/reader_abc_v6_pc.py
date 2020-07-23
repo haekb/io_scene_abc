@@ -51,7 +51,11 @@ class ABCV6ModelReader(object):
         vertex.normal.y = vertex_normal_chars[1]
         vertex.normal.z = vertex_normal_chars[2]
 
-        vertex.sublod_vertex_index = unpack('b', f)[0]
+        weight = Weight()
+        weight.node_index = unpack('b', f)[0]
+        weight.bias = 1.0
+
+        vertex.weights = [ weight ]
 
         # Jake: From the notes...
         # indices of the model vertices that this vertex replaces -- only really used for 'extra' vertices:  vertices that got added for extra LODs
@@ -120,30 +124,14 @@ class ABCV6ModelReader(object):
         piece.specular_scale = 1
         piece.name = "Piece"
 
-
-        pos = f.tell()
-
         # Jake: Where do I stick these? hmmm
         bounds_min = self._read_vector(f)
         bounds_max = self._read_vector(f)
-        #pos = f.tell()
 
         self._lod_count = unpack('I', f)[0]
 
-        #pos = f.tell()
-
-        #vertex_start_number = [ unpack('H', f)[0] for _ in range(self._lod_count) ]
-
-        
-
-        # For now, everything is one lod
+        # Lod returns a list of lods now!
         piece.lods = self._read_lod(f)
-
-
-
-
-
-        #piece.lods = [self._read_lod(f) for _ in range(self._lod_count)]
 
         return piece
 
