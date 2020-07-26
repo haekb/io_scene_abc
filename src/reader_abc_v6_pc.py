@@ -162,8 +162,8 @@ class ABCV6ModelReader(object):
         node.flags = unpack('b', f)[0]
 
         # Vertex animations I think!
-        num_md_verts = unpack('I', f)[0]
-        md_vert_list = [unpack('H', f)[0] for _ in range(num_md_verts)]
+        node.md_vert_count = unpack('I', f)[0]
+        node.md_vert_list = [unpack('H', f)[0] for _ in range(node.md_vert_count)]
 
         node.child_count = unpack('I', f)[0]
 
@@ -203,16 +203,23 @@ class ABCV6ModelReader(object):
 
         animation.keyframe_count = unpack('I', f)[0]
         animation.keyframes = [self._read_keyframe(f) for _ in range(animation.keyframe_count)]
-        for _ in range(self._node_count):
+        for node_index in range(self._node_count):
             animation.node_keyframe_transforms.append( [self._read_transform(f) for _ in range(animation.keyframe_count)] )
             unk_1 = self._read_vector(f)
             unk_2 = self._read_vector(f)
 
+            md_vert_count = self._model.nodes[node_index].md_vert_count
+
+            if (md_vert_count > 0):
+                #(nVertexPos * nKeyframes * 3) / (4*3)
+                skip_to = md_vert_count * animation.keyframe_count * 3
+                f.seek( f.tell() + skip_to )
+
         return animation
 
     def from_file(self, path):
-        model = Model()
-        model.name = os.path.splitext(os.path.basename(path))[0]
+        self._model = Model()
+        self._model.name = os.path.splitext(os.path.basename(path))[0]
         with open(path, 'rb') as f:
             next_section_offset = 0
             while next_section_offset != -1:
@@ -227,12 +234,12 @@ class ABCV6ModelReader(object):
                     if self._version != self._version_constant:
                         raise Exception('Not a version 6 abc file! ({}).'.format(self._version))
 
-                    model.version = 6
-                    model.command_string = self._read_string(f)
+                    self._model.version = 6
+                    self._model.command_string = self._read_string(f)
 
                 # Geometry Section
                 elif section_name == 'Geometry':
-                    model.pieces = [ self._read_piece(f) ]
+                    self._model.pieces = [ self._read_piece(f) ]
 
                 # Node Section
                 elif section_name == 'Nodes':
@@ -249,26 +256,40 @@ class ABCV6ModelReader(object):
                         children_left -= 1
                         node = self._read_node(f)
                         children_left += node.child_count
-                        model.nodes.append(node)
+                        self._model.nodes.append(node)
 
-                    build_undirected_tree(model.nodes)
+                    build_undirected_tree(self._model.nodes)
                 # End
 
                 # Animation Section
                 elif section_name == 'Animation':
                     animation_count = unpack('I', f)[0]
-                    model.animations = [self._read_animation(f) for _ in range(animation_count)]
+                    self._model.animations = [self._read_animation(f) for _ in range(animation_count)]
 
                 #elif section_name == 'AnimBindings':
                 #    anim_binding_count = unpack('I', f)[0]
                 #    model.anim_bindings = [self._read_anim_binding(f) for _ in range(anim_binding_count)]
 
                 # Animation Dims Section
+        # End
+
+
+        # Splice our mesh by node assignment
+        #new_mesh_pieces = {}
+        #for vert in model.pieces[0].lods[0].vertices:
+        #    node_index = vert.weights[0].node_index
+#
+        #    if (new_mesh_pieces[node_index] == None):
+        #        new_mesh_pieces[node_index] = Piece()
+
+            
+                
+
         
         # Okay we're going to use the first animation's location and rotation data for our node's bind_matrix
-        for node_index in range(len(model.nodes)):
-            node = model.nodes[node_index]
-            reference_transform = model.animations[0].node_keyframe_transforms[node_index][0]
+        for node_index in range(len(self._model.nodes)):
+            node = self._model.nodes[node_index]
+            reference_transform = self._model.animations[0].node_keyframe_transforms[node_index][0]
 
             mat_rot = reference_transform.rotation.to_matrix()
             mat_loc = Matrix.Translation(reference_transform.location)
@@ -284,10 +305,11 @@ class ABCV6ModelReader(object):
             node.inverse_bind_matrix = node.bind_matrix.inverted()
 
         # Ok now we're going to apply out mesh offset
-        for vert in model.pieces[0].lods[0].vertices:
+        for vert in self._model.pieces[0].lods[0].vertices:
             node_index = vert.weights[0].node_index
 
-            vert.location = model.nodes[node_index].bind_matrix @ vert.location
+            vert.location = self._model.nodes[node_index].bind_matrix @ vert.location
+            vert.normal = self._model.nodes[node_index].bind_matrix @ vert.normal
         # End
 
-        return model
+        return self._model

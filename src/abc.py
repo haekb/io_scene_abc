@@ -107,6 +107,10 @@ class Node(object):
         self.flags = 0
         self.bind_matrix = Matrix()
         self.child_count = 0
+
+        # Version 6 specific
+        self.md_vert_count = 0
+        self.md_vert_list = []
     
     def __repr__(self):
         return self.name
