@@ -13,14 +13,21 @@ class ABCV6ModelReader(object):
         self._version_constant = "MonolithExport Model File v6"
         # Node Flags
         self._flag_null = 1
-        self._flag_rigid = 2 # Skeletal
-        self._flag_deformation = 6 # Vertex Animated
+        self._flag_tris = 2 # This node contains triangles
+        self._flag_deformation = 4 # This node contains deformation (vertex animation). Used in combo with flag_tris
+        # Might be Lithtech 1.5 only flags
+        self._flag_env_map = 8
+        self._flag_env_map_only = 16
+        self._flag_scroll_tex_u = 32
+        self._flag_scroll_tex_v = 64
 
         # Version is actually a string in this format
         # it should always equal `self._version_constant`
         self._version = ""
         self._node_count = 0
         self._lod_count = 0
+
+        self._model = None
 
     #
     # Helpers
