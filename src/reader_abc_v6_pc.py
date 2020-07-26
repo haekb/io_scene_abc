@@ -274,15 +274,13 @@ class ABCV6ModelReader(object):
 
             # Apply it!
             node.bind_matrix = parent_matrix @ mat
+            node.inverse_bind_matrix = node.bind_matrix.inverted()
 
         # Ok now we're going to apply out mesh offset
         for vert in model.pieces[0].lods[0].vertices:
             node_index = vert.weights[0].node_index
 
-            vert.location += model.nodes[node_index].bind_matrix.to_translation()
-
-
-
+            vert.location = model.nodes[node_index].bind_matrix @ vert.location
         # End
 
         return model
