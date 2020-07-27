@@ -111,7 +111,7 @@ struct Nodes {
 // ANIMATION INFO
 //
 struct NodeDeformationFrame {
-    LTVector Position;
+    char Position[3];
 };
 
 struct NodeKeyFrame {
@@ -119,15 +119,16 @@ struct NodeKeyFrame {
     LTRotation Rotation;
 };
 
-struct NodeAnim (uint NumKeyframers) {
+struct NodeAnim (uint NumKeyframers, uint NumMDVerts) {
     NodeKeyFrame NodeKeyFrameData[NumKeyframers];
 
-    // These might not be here for deformation nodes
-    LTVector Unk1;
-    LTVector Unk2;
+    if (NumMDVerts > 0)
+    {
+        NodeDeformationFrame vertexAnimation[(NumMDVerts * NumKeyframers)];
+    }
 
-    // If Deformation Node then has vertex positions
-    // Length is Node.NumMDVerts * NumKeyFramers * 3 (Vector Size)
+    LTVector BoundsMin;
+    LTVector BoundsMax;
 };
 
 struct KeyFrameInfo {
@@ -144,7 +145,6 @@ struct AnimInfo (int NumNodes) {
     LTVector BoundsMax;
     uint NumKeyframers;
     KeyFrameInfo KeyframeData[NumKeyframers] <optimize=false>;
-    NodeAnim NodeAnimData(NumKeyframers)[NumNodes] <optimize=false>;
 };
 
 struct Animation (int NumNodes) {
@@ -189,6 +189,17 @@ while (true)
 Section animationSection;
 Animation animation(nTotalNodes);
 
+local int i = 0;
+local int j = 0;
+for (i = 0; i < animation.NumAnims; i++)
+{
+
+    for (j = 0; j < nTotalNodes; j++)
+    {
+        NodeAnim NodeAnimData(animation.AnimData[i].NumKeyframers, node[j].NumMDVerts) <optimize=false>;
+    }
+}
+
 // Deformation Node example:
 // Hack for cat.abc, uncomment when loading cat.abc!
 // 
@@ -198,6 +209,17 @@ local int nKeyframes = animation.AnimData[0].NumKeyframers;
 // 4*3 is the length of LTVector in bytes
 NodeDeformationFrame vertexAnimation[(nVertexPos * nKeyframes * 3) / (4*3)];
 */
+
+if (false)
+{
+//FSeek(12676);
+local int bone = 1;
+local int nVertexPos = node[bone].NumMDVerts;
+local int nKeyframes = animation.AnimData[0].NumKeyframers;
+// 4*3 is the length of LTVector in bytes
+NodeDeformationFrame vertexAnimation[(nVertexPos * nKeyframes * 3) / (4*3)];
+
+}
 
 Section animationDimsSection;
 AnimDims animDims(animation.NumAnims);
