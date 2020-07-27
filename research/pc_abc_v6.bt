@@ -111,7 +111,7 @@ struct Nodes {
 // ANIMATION INFO
 //
 struct NodeDeformationFrame {
-    char Position[3];
+    uchar Position[3];
 };
 
 struct NodeKeyFrame {
