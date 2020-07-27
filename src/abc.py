@@ -157,6 +157,15 @@ class Animation(object):
         self.keyframes = []
         self.node_keyframe_transforms = []
 
+        # Version 6 specific
+
+        # Note this should line up with md_vert_list, and go on for md_vert_count * keyframe_count
+        # List of 3 chars (verts)
+        self.vertex_deformations = []
+        # List of Vector (verts)
+        # Scaled by the animation bounding box
+        self.transformed_vertex_deformations = []
+
 
 class AnimBinding(object):
     def __init__(self):
