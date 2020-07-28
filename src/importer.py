@@ -34,6 +34,7 @@ def import_model(model, options):
     Context = bpy.context
     Data = bpy.data
     Ops = bpy.ops
+    Types = bpy.types
 
     # Create our new collection. This will help us later on..
     collection = Data.collections.new(model.name)
@@ -66,80 +67,18 @@ def import_model(model, options):
         node hierarchy.
         '''
         bone.parent = armature.edit_bones[node.parent.name] if node.parent else None
-        bone.tail = (1, 0, 0)
-        bone.transform(node.bind_matrix)
+
+        # Apply our bind matrix with proper tail and roll.
+        tail, roll = Types.Bone.AxisRollFromMatrix(node.bind_matrix.to_3x3())
+        bone.head = node.bind_matrix.to_translation()
+        bone.tail = tail + bone.head
+        bone.roll = roll
 
         if bone.parent is not None:
             bone.use_connect = bone.parent.tail == bone.head
-            #print(bone.use_connect, node.is_removable)
+        # End If
 
-        '''
-        Get the forward, left, and up vectors of the bone (used later for determining the roll).
-        '''
-
-        '''
-        Lithtech uses a left-handed coordinate system where:
-            X+: Right
-            Y+: Up
-            Z+: Forward
-
-        Jake: Animation wise, action_hero.abc seems to use...
-        
-        Y+: Forward
-        X-: Up
-        Z+: Right
-        '''
-        (forward, right, up) = map(lambda x: -x.xyz, node.bind_matrix.col[0:3])
-
-        if node.children:
-            '''
-            This bone has children. To determine the tail position of this bone,
-            we check if all child bone head locations are sufficiently collinear to this
-            direction vector of this bone.
-            '''
-            is_collinear = True
-            collinearity_epsilon = 0.00001
-
-            for child in node.children:
-                child_dir = child.bind_matrix.translation - bone.head
-                dot_product = forward.dot(child_dir.normalized())
-                if (1.0 - dot_product) > collinearity_epsilon:
-                    is_collinear = False
-                    break
-
-            if is_collinear:
-                '''
-                All child bone head locations are collinear to the directionality of
-                the bone. Set the tail of this bone to the nearest child bone whose
-                head is not concurrent with the head of the current bone (i.e. we shouldn't have zero-length bones!)
-                '''
-                sorted_children = node.children[:]
-                sorted_children.sort(key=lambda c: (bone.head - c.bind_matrix.translation).length_squared)
-                bone.tail = sorted_children[0].bind_matrix.translation
-                # TODO: this could still be generating zero-length bones
-            else:
-                '''
-                One or more child bone head locations are not collinear. Simply project
-                the bone out along it's forward vector a reasonable distance.
-                '''
-                dot_products = map(lambda x: forward.dot(child.bind_matrix.translation - bone.head), node.children)
-                dot_products = list(filter(lambda x: x > 0, dot_products))
-                bone_length = max(options.bone_length_min,
-                                  min(dot_products) if dot_products else options.bone_length_min)
-                bone.tail = bone.head + bone_length * forward
-        else:
-            '''
-            There is no child node to connect to, so we make a guess
-            as to an appropriate length of the bone (half the length
-            of the previous bone).
-            '''
-            if bone.parent is not None:
-                bone_length = max(options.bone_length_min, bone.parent.length * 0.5)
-            else:
-                bone_length = options.bone_length_min
-            bone.tail = bone.head + bone_length * forward
-
-            # TODO: Now calculate the roll of the bone.
+    # End For
 
     Ops.object.mode_set(mode='OBJECT')
 
@@ -336,8 +275,6 @@ def import_model(model, options):
         index = 0
         for animation in model.animations:
             print("Processing ", animation.name)
-            if(index > 0):
-                break
 
             index  = index + 1
             # Create a new action with the animation name
@@ -349,7 +286,8 @@ def import_model(model, options):
             # For every keyframe
             for keyframe_index, keyframe in enumerate(animation.keyframes):
                 # Set keyframe time - Scale it down because it's way too slow for testing
-                Context.scene.frame_set(keyframe.time * 0.01)
+                Context.scene.frame_set(keyframe.time * 0.1)
+                #Context.scene.frame_end = animation.keyframes[-1].time
            
                 '''
                 Recursively apply transformations to a nodes children
@@ -361,55 +299,41 @@ def import_model(model, options):
                     pose_bone = pose_bones[node_index]
                     original_index = node_index
 
-                    #print("[",node_index,"] Applying transform to : ", node.name)
-
-
                     # Get the current transform
                     transform = animation.node_keyframe_transforms[node_index][keyframe_index]
 
-                    # Correct-ish
-                    # rotation = Quaternion( (transform.rotation.w, -transform.rotation.z, -transform.rotation.x, transform.rotation.y) )
+                    # Form our animation matrix
+                    mat_rot = transform.rotation.to_matrix()
+                    mat_loc = Matrix.Translation(transform.location)
+                    matrix = mat_loc @ mat_rot.to_4x4()
 
-
-                    rotation = Quaternion( (transform.rotation.w, -transform.rotation.z, -transform.rotation.x, transform.rotation.y) )
-
-                    matrix = rotation.to_matrix().to_4x4() # transform.rotation.to_matrix().to_4x4()
-
-                    # Apply the translation
-                    matrix.Translation(transform.location.xzy)
-    
-                    
-                    # Use a matrix instead!
-                    pose_bone.matrix = parent_matrix @ matrix
-
-                    # Recursively apply our transform to our children!
-                    # print("[",node_index,"] Found children count : ", node.child_count)
-
-                    #if (node.child_count):
-                    #    print("[",original_index,"] Recurse Start --- ",node.name)
+                    # If we have a parent, make sure to apply their matrix with ours to get position relative to our parent
+                    # otherwise just use our matrix
+                    if parent_matrix != None:
+                        pose_bone.matrix = parent_matrix @ matrix
+                    else:
+                        pose_bone.matrix = matrix
 
                     for index in range(0, node.child_count):
                         node_index = node_index + 1
-                        #print("[",original_index,"] Applying transform to child : ", nodes[node_index].name)
-
                         node_index = recursively_apply_transform(nodes, node_index, pose_bones, pose_bone.matrix)
-                    
-                    #if (node.child_count):
-                    #    print("[",original_index,"] Recurse End   --- ",node.name)
 
                     return node_index
                 '''
                 Func End
                 '''
 
-                recursively_apply_transform(model.nodes, 0, armature_object.pose.bones, Matrix())
+                recursively_apply_transform(model.nodes, 0, armature_object.pose.bones, None)
 
                 # For every bone
                 for bone, node in zip(armature_object.pose.bones, model.nodes):
                     bone.keyframe_insert('location')
                     bone.keyframe_insert('rotation_quaternion')
+                # End For
+            # End For
 
             # Add to actions array
+            
             actions.append(action)
 
         # Add our actions to animation data
