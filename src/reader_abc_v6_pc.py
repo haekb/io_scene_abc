@@ -205,15 +205,35 @@ class ABCV6ModelReader(object):
         animation.keyframes = [self._read_keyframe(f) for _ in range(animation.keyframe_count)]
         for node_index in range(self._node_count):
             animation.node_keyframe_transforms.append( [self._read_transform(f) for _ in range(animation.keyframe_count)] )
-            unk_1 = self._read_vector(f)
-            unk_2 = self._read_vector(f)
 
             md_vert_count = self._model.nodes[node_index].md_vert_count
 
+            # Temp structure!
             if (md_vert_count > 0):
-                #(nVertexPos * nKeyframes * 3) / (4*3)
-                skip_to = md_vert_count * animation.keyframe_count * 3
-                f.seek( f.tell() + skip_to )
+                #print("-------------------------------------")
+                #print("Keyframe Count %d | MD Vert Count %d" % (animation.keyframe_count, md_vert_count))
+
+                for _ in range( int( ( animation.keyframe_count * md_vert_count ) ) ):
+                    animation.vertex_deformations.append( unpack('3B', f) )
+            # End
+
+            # Only used with vertex animations
+            scale = self._read_vector(f)
+            transform = self._read_vector(f)
+
+            vertex_len = len(animation.vertex_deformations)
+
+            for i in range(vertex_len):
+                deformation = animation.vertex_deformations[i]
+
+                # To get the proper coordinates we must multiply our 0-255 vertex deformation by the scale value, then add the transform
+                # Oddly enough this is exactly how Quake 2 does it..HMMM...
+                x = (deformation[0] * scale.x) + transform.x
+                y = (deformation[1] * scale.y) + transform.y
+                z = (deformation[2] * scale.z) + transform.z
+
+                animation.transformed_vertex_deformations.append( Vector( (x,y,z) ) )
+
 
         return animation
 
@@ -272,19 +292,6 @@ class ABCV6ModelReader(object):
 
                 # Animation Dims Section
         # End
-
-
-        # Splice our mesh by node assignment
-        #new_mesh_pieces = {}
-        #for vert in model.pieces[0].lods[0].vertices:
-        #    node_index = vert.weights[0].node_index
-#
-        #    if (new_mesh_pieces[node_index] == None):
-        #        new_mesh_pieces[node_index] = Piece()
-
-            
-                
-
         
         # Okay we're going to use the first animation's location and rotation data for our node's bind_matrix
         for node_index in range(len(self._model.nodes)):
@@ -299,17 +306,37 @@ class ABCV6ModelReader(object):
 
             if node.parent:
                 parent_matrix = node.parent.bind_matrix
+            # End
 
             # Apply it!
             node.bind_matrix = parent_matrix @ mat
             node.inverse_bind_matrix = node.bind_matrix.inverted()
+        # End
 
         # Ok now we're going to apply out mesh offset
+        vert_index = 0
         for vert in self._model.pieces[0].lods[0].vertices:
             node_index = vert.weights[0].node_index
+            md_vert_count = self._model.nodes[node_index].md_vert_count
 
-            vert.location = self._model.nodes[node_index].bind_matrix @ vert.location
+            # Apply the first frame of vertex animation deformation
+            if md_vert_count > 0:
+
+                # Find the position of the vertex we're going to deform
+                md_vert = self._model.nodes[node_index].md_vert_list.index(vert_index)
+                
+                # Grab are transformed deformation
+                vertex_transform = self._model.animations[0].transformed_vertex_deformations[md_vert]
+
+                vert.location = self._model.nodes[node_index].bind_matrix @ vertex_transform
+            else:
+                vert.location = self._model.nodes[node_index].bind_matrix @ vert.location
+            # End
+
             vert.normal = self._model.nodes[node_index].bind_matrix @ vert.normal
+
+            vert_index += 1
+            # End
         # End
 
         return self._model
