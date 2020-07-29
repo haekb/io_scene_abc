@@ -355,8 +355,8 @@ def import_model(model, options):
     Context.scene.frame_set(0)
 
     # TODO: make an option to convert to blender coordinate system
-    # armature_object.rotation_euler.x = math.radians(90)
-    # armature_object.scale.x = -1.0
+    armature_object.rotation_euler.x = math.radians(90)
+    armature_object.scale.x = -1.0
 
     return {'FINISHED'}
 
