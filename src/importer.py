@@ -302,10 +302,22 @@ def import_model(model, options):
                     # Get the current transform
                     transform = animation.node_keyframe_transforms[node_index][keyframe_index]
 
+                    mat_scale = Matrix()
+
+                    if model.flip_anim:
+                        transform.rotation.conjugate()
+                    # End
+
+                    # FIXME: This doesn't work well, and it can probably be replaced with something better
+                    # If the mesh needs to be flipped, only do so on the root node!
+                    #if parent_matrix == None and model.flip_geom:
+                    #    mat_scale = Matrix.Scale(-1.0, 4, ( 0.0, 0.0, 1.0 ) )
+                    # End
+
                     # Form our animation matrix
                     mat_rot = transform.rotation.to_matrix()
                     mat_loc = Matrix.Translation(transform.location)
-                    matrix = mat_loc @ mat_rot.to_4x4()
+                    matrix = mat_loc @ mat_rot.to_4x4() @ mat_scale
 
                     # If we have a parent, make sure to apply their matrix with ours to get position relative to our parent
                     # otherwise just use our matrix

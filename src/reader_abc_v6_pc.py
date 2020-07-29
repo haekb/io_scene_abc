@@ -236,6 +236,23 @@ class ABCV6ModelReader(object):
 
 
         return animation
+    # End Function
+
+    def _read_animation_dims(self, f):
+        # We're not using animation dims right now,
+        # so we'll just read it and ignore it!
+        animation_count = len(self._model.animations)
+        animation_dims = []
+        for _ in range(animation_count):
+            animation_dims.append( self._read_vector(f) )
+    # End Function
+
+    def _read_transform_info(self, f):
+        flip_flag = unpack('I', f)[0]
+        unk_flag = unpack('I', f)[0]
+
+        return (flip_flag, unk_flag)
+
 
     def from_file(self, path):
         self._model = Model()
@@ -286,11 +303,16 @@ class ABCV6ModelReader(object):
                     animation_count = unpack('I', f)[0]
                     self._model.animations = [self._read_animation(f) for _ in range(animation_count)]
 
-                #elif section_name == 'AnimBindings':
-                #    anim_binding_count = unpack('I', f)[0]
-                #    model.anim_bindings = [self._read_anim_binding(f) for _ in range(anim_binding_count)]
-
                 # Animation Dims Section
+                elif section_name == 'AnimDims':
+                    self._read_animation_dims(f)
+
+                # Transform Info Section
+                elif section_name == 'TransformInfo':
+                    flip_geom, flip_anim = self._read_transform_info(f)
+                    # See the model details for info on these flags
+                    self._model.flip_geom = flip_geom
+                    self._model.flip_anim = flip_anim
         # End
         
         # Okay we're going to use the first animation's location and rotation data for our node's bind_matrix
@@ -298,9 +320,21 @@ class ABCV6ModelReader(object):
             node = self._model.nodes[node_index]
             reference_transform = self._model.animations[0].node_keyframe_transforms[node_index][0]
 
+            mat_scale = Matrix()
+
+            if self._model.flip_anim:
+                reference_transform.rotation.conjugate()
+            # End
+
+            # FIXME: This doesn't work well, and it can probably be replaced with something better
+            # If the mesh needs to be flipped, only do so on the root node!
+            #if node.parent == None and self._model.flip_geom:
+            #    mat_scale = Matrix.Scale(-1.0, 4, ( 0.0, 0.0, 1.0 ) )
+            # End
+                
             mat_rot = reference_transform.rotation.to_matrix()
             mat_loc = Matrix.Translation(reference_transform.location)
-            mat = mat_loc @ mat_rot.to_4x4()
+            mat = mat_loc @ mat_rot.to_4x4() @ mat_scale
 
             parent_matrix = Matrix()
 
@@ -334,9 +368,7 @@ class ABCV6ModelReader(object):
             # End
 
             vert.normal = self._model.nodes[node_index].bind_matrix @ vert.normal
-
             vert_index += 1
-            # End
         # End
 
         return self._model

@@ -196,6 +196,16 @@ class Model(object):
         self.weight_sets = []
         self.anim_bindings = []
         
+        # ABC v6 specific
+
+        # By default it's true, this is only used when self.version == 6!
+
+        # Flip geomtry
+        self.flip_geom = True
+
+        # Flip animation keyframes
+        self.flip_anim = True
+        
     @property
     def keyframe_count(self):
         return sum([len(animation.keyframes) for animation in self.animations])
