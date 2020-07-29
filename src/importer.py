@@ -304,7 +304,7 @@ def import_model(model, options):
 
                     mat_scale = Matrix()
 
-                    if model.flip_anim:
+                    if model.version == 6 and model.flip_anim:
                         transform.rotation.conjugate()
                     # End
 
