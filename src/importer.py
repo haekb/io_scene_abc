@@ -308,12 +308,6 @@ def import_model(model, options):
                         transform.rotation.conjugate()
                     # End
 
-                    # FIXME: This doesn't work well, and it can probably be replaced with something better
-                    # If the mesh needs to be flipped, only do so on the root node!
-                    #if parent_matrix == None and model.flip_geom:
-                    #    mat_scale = Matrix.Scale(-1.0, 4, ( 0.0, 0.0, 1.0 ) )
-                    # End
-
                     # Form our animation matrix
                     mat_rot = transform.rotation.to_matrix()
                     mat_loc = Matrix.Translation(transform.location)
@@ -357,6 +351,11 @@ def import_model(model, options):
     # TODO: make an option to convert to blender coordinate system
     armature_object.rotation_euler.x = math.radians(90)
     armature_object.scale.x = -1.0
+
+    # Apply the geometry flip in armature space
+    # This may not be the best place to do it, but it works for now!
+    if model.version == 6 or model.flip_geom:
+        armature_object.scale.z = -1.0
 
     return {'FINISHED'}
 

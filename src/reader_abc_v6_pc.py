@@ -326,12 +326,6 @@ class ABCV6ModelReader(object):
                 reference_transform.rotation.conjugate()
             # End
 
-            # FIXME: This doesn't work well, and it can probably be replaced with something better
-            # If the mesh needs to be flipped, only do so on the root node!
-            #if node.parent == None and self._model.flip_geom:
-            #    mat_scale = Matrix.Scale(-1.0, 4, ( 0.0, 0.0, 1.0 ) )
-            # End
-                
             mat_rot = reference_transform.rotation.to_matrix()
             mat_loc = Matrix.Translation(reference_transform.location)
             mat = mat_loc @ mat_rot.to_4x4() @ mat_scale
