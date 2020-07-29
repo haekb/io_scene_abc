@@ -160,6 +160,17 @@ struct AnimDims (int NumAnims) {
 };
 
 //
+// TRANSFORM INFO
+// 
+struct TransformInfo {
+    // This value gets set on the Model class
+    // It seems to flip the mesh inside out in some select cases
+    int FlipMat;
+    // This value (if not 0) gets applied to every keyframe
+    int FlipAnimKeyframes;
+};
+
+//
 // LET'S GO!
 //
 
@@ -203,3 +214,10 @@ for (i = 0; i < animation.NumAnims; i++)
 
 Section animationDimsSection;
 AnimDims animDims(animation.NumAnims);
+
+// Check for LithTech 1.5 specific info!
+if (animationDimsSection.NextChunkLocation != 4294967295)
+{
+    Section transformInfoSection;
+    TransformInfo transformInfo;
+}
