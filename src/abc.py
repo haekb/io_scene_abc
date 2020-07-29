@@ -132,6 +132,13 @@ class Socket(object):
 
 class Animation(object):
     class Keyframe(object):
+
+        # We only care about location for Vertex transforms
+        class VertexTransform(object):
+            def __init__(self):
+                self.location = Vector()
+        # End Class
+
         class Transform(object):
             def __init__(self):
                 self.location = Vector()

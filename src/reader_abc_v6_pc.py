@@ -126,6 +126,7 @@ class ABCV6ModelReader(object):
             lod.vertices = [self._read_vertex(f) for _ in range(count)]
 
             lod_list.append(lod)
+        # End For
 
         return lod_list
 
@@ -175,6 +176,14 @@ class ABCV6ModelReader(object):
         transform.rotation = self._read_quaternion(f)
         return transform
 
+    def _read_vertex_transform(self, f):
+        transform = Animation.Keyframe.VertexTransform()
+        # Unpack the bytes and shove them into a vector
+        # Note: These aren't usable until we process them later on!
+        location = unpack('3B', f)
+        transform.location = Vector( (location[0], location[1], location[2]) )
+        return transform
+
     def _read_child_model(self, f):
         child_model = ChildModel()
         child_model.name = self._read_string(f)
@@ -208,32 +217,30 @@ class ABCV6ModelReader(object):
 
             md_vert_count = self._model.nodes[node_index].md_vert_count
 
-            # Temp structure!
+            # Temp store the unprocessed vertex deformations
             if (md_vert_count > 0):
-                #print("-------------------------------------")
-                #print("Keyframe Count %d | MD Vert Count %d" % (animation.keyframe_count, md_vert_count))
-
-                for _ in range( int( ( animation.keyframe_count * md_vert_count ) ) ):
-                    animation.vertex_deformations.append( unpack('3B', f) )
+                animation.vertex_deformations.append( [self._read_vertex_transform(f) for _ in range(animation.keyframe_count * md_vert_count)]  )
+            else:
+                # Empty!
+                animation.vertex_deformations.append([])
             # End
 
             # Only used with vertex animations
             scale = self._read_vector(f)
             transform = self._read_vector(f)
 
-            vertex_len = len(animation.vertex_deformations)
+            vertex_len = len(animation.vertex_deformations[node_index])
 
+            # Process the vertex deformations
             for i in range(vertex_len):
-                deformation = animation.vertex_deformations[i]
+                deformation = animation.vertex_deformations[node_index][i].location
 
                 # To get the proper coordinates we must multiply our 0-255 vertex deformation by the scale value, then add the transform
                 # Oddly enough this is exactly how Quake 2 does it..HMMM...
-                x = (deformation[0] * scale.x) + transform.x
-                y = (deformation[1] * scale.y) + transform.y
-                z = (deformation[2] * scale.z) + transform.z
-
-                animation.transformed_vertex_deformations.append( Vector( (x,y,z) ) )
-
+                deformation.x = (deformation.x * scale.x) + transform.x
+                deformation.y = (deformation.y * scale.y) + transform.y
+                deformation.z = (deformation.z * scale.z) + transform.z
+        # End For
 
         return animation
     # End Function
@@ -248,10 +255,11 @@ class ABCV6ModelReader(object):
     # End Function
 
     def _read_transform_info(self, f):
-        flip_flag = unpack('I', f)[0]
-        unk_flag = unpack('I', f)[0]
+        flip_geom = unpack('I', f)[0]
+        flip_anim = unpack('I', f)[0]
 
-        return (flip_flag, unk_flag)
+        return (flip_geom, flip_anim)
+    # End Function
 
 
     def from_file(self, path):
@@ -354,7 +362,7 @@ class ABCV6ModelReader(object):
                 md_vert = self._model.nodes[node_index].md_vert_list.index(vert_index)
                 
                 # Grab are transformed deformation
-                vertex_transform = self._model.animations[0].transformed_vertex_deformations[md_vert]
+                vertex_transform = self._model.animations[0].vertex_deformations[node_index][md_vert].location
 
                 vert.location = self._model.nodes[node_index].bind_matrix @ vertex_transform
             else:
