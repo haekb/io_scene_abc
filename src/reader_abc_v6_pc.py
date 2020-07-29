@@ -269,7 +269,7 @@ class ABCV6ModelReader(object):
 
                     self._version = self._read_string(f)
                     if self._version != self._version_constant:
-                        raise Exception('Not a version 6 abc file! ({}).'.format(self._version))
+                        raise Exception('Unsupported file version ({}).'.format(self._version))
 
                     self._model.version = 6
                     self._model.command_string = self._read_string(f)
