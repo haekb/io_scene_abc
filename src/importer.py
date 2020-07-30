@@ -270,6 +270,9 @@ def import_model(model, options):
 
         armature_object.animation_data_create()
 
+        for obj in armature_object.children:
+            obj.animation_data_create()
+
         actions = []
 
         index = 0
@@ -283,10 +286,14 @@ def import_model(model, options):
             # Temp set
             armature_object.animation_data.action = action
 
+            for obj in [o for o in collection.objects if o.type in {'MESH'}]:
+                obj.animation_data.action = action
+
             # For every keyframe
             for keyframe_index, keyframe in enumerate(animation.keyframes):
                 # Set keyframe time - Scale it down because it's way too slow for testing
                 Context.scene.frame_set(keyframe.time * 0.1)
+                
                 #Context.scene.frame_end = animation.keyframes[-1].time
            
                 '''
@@ -320,7 +327,7 @@ def import_model(model, options):
                     else:
                         pose_bone.matrix = matrix
 
-                    for index in range(0, node.child_count):
+                    for _ in range(0, node.child_count):
                         node_index = node_index + 1
                         node_index = recursively_apply_transform(nodes, node_index, pose_bones, pose_bone.matrix)
 
@@ -329,6 +336,7 @@ def import_model(model, options):
                 Func End
                 '''
 
+                
                 recursively_apply_transform(model.nodes, 0, armature_object.pose.bones, None)
 
                 # For every bone
@@ -336,14 +344,41 @@ def import_model(model, options):
                     bone.keyframe_insert('location')
                     bone.keyframe_insert('rotation_quaternion')
                 # End For
+
+                if options.should_import_vertex_animations:
+                    # For every vert (Thanks animation_animall!)
+                    for obj in armature_object.children:
+                        for vert_index, vert in enumerate(obj.data.vertices): 
+
+                            # Let's hope they're in the same order!
+                            our_vert_index = vert_index
+                            node_index = model.pieces[0].lods[0].vertices[our_vert_index].weights[0].node_index
+                            node = model.nodes[node_index]
+
+                            if node.md_vert_count > 0:
+                                # Find the position of the vertex we're going to deform
+                                # It's laid out flat, so we'll need to add the result of the length of verts per frame * the framecount
+                                md_vert = node.md_vert_list.index(our_vert_index) + (keyframe_index * node.md_vert_count)
+
+                                # Grab are transformed deformation
+                                vertex_transform = animation.vertex_deformations[node_index][md_vert].location
+                                vert.co = node.bind_matrix @ vertex_transform
+
+                                vert.keyframe_insert('co', group="Vertex %s" % vert_index)
+                            # End If
+                        # End For
+                    # End For
+
             # End For
 
             # Add to actions array
-            
             actions.append(action)
 
         # Add our actions to animation data
         armature_object.animation_data.action = actions[0]
+
+        for obj in armature_object.children:
+            obj.animation_data.action = actions[0]
 
     # Set our keyframe time to 0
     Context.scene.frame_set(0)
@@ -404,6 +439,12 @@ class ImportOperatorABC(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
         default=False,
     )
 
+    should_import_vertex_animations: BoolProperty(
+        name="Import Vertex Animations (Experimental)",
+        description="When checked, vertex animations will be imported. (Requires Import Animations.)",
+        default=False,
+    )
+
     should_import_sockets: BoolProperty(
         name="Import Sockets",
         description="When checked, sockets will be imported as Empty objects.",
@@ -449,6 +490,7 @@ class ImportOperatorABC(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
         box = layout.box()
         box.label(text='Animations')
         box.row().prop(self, 'should_import_animations')
+        box.row().prop(self, 'should_import_vertex_animations')
 
         box = layout.box()
         box.label(text='Misc')
@@ -475,6 +517,7 @@ class ImportOperatorABC(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
         options.bone_length_min = self.bone_length_min
         options.should_import_lods = self.should_import_lods
         options.should_import_animations = self.should_import_animations
+        options.should_import_vertex_animations = self.should_import_vertex_animations
         options.should_import_sockets = self.should_import_sockets
         options.should_merge_pieces = self.should_merge_pieces
         options.should_clear_scene = self.should_clear_scene
