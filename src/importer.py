@@ -393,13 +393,13 @@ class ImportOperatorABC(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     )
 
     should_import_lods: BoolProperty(
-        name="Import LODs",
+        name="Import LODs (Not implemented)",
         description="When checked, LOD meshes will be imported (suffixed with .LOD0, .LOD1 etc.)",
         default=False,
     )
 
     should_import_animations: BoolProperty(
-        name="Import Animations (not yet working)",
+        name="Import Animations (Experimental)",
         description="When checked, animations will be imported as actions.",
         default=False,
     )
@@ -407,11 +407,11 @@ class ImportOperatorABC(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     should_import_sockets: BoolProperty(
         name="Import Sockets",
         description="When checked, sockets will be imported as Empty objects.",
-        default=True,
+        default=False,
     )
 
     should_merge_pieces: BoolProperty(
-        name="Merge Pieces (not yet working)",
+        name="Merge Pieces (Not implemented)",
         description="When checked, pieces that share a material index will be merged.",
         default=False,
     )
