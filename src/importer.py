@@ -291,10 +291,8 @@ def import_model(model, options):
 
             # For every keyframe
             for keyframe_index, keyframe in enumerate(animation.keyframes):
-                # Set keyframe time - Scale it down because it's way too slow for testing
-                Context.scene.frame_set(keyframe.time * 0.1)
-                
-                #Context.scene.frame_end = animation.keyframes[-1].time
+                # Set keyframe time - Scale it down to the default blender animation framerate (25fps)
+                Context.scene.frame_set(keyframe.time * 0.025)
            
                 '''
                 Recursively apply transformations to a nodes children
