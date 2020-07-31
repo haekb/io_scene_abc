@@ -10,6 +10,7 @@ from .dtx import DTX
 from .utils import show_message_box
 
 # Format imports
+from .reader_abc_v6_pc import ABCV6ModelReader
 from .reader_abc_pc import ABCModelReader
 from .reader_ltb_ps2 import PS2LTBModelReader
 
@@ -33,6 +34,7 @@ def import_model(model, options):
     Context = bpy.context
     Data = bpy.data
     Ops = bpy.ops
+    Types = bpy.types
 
     # Create our new collection. This will help us later on..
     collection = Data.collections.new(model.name)
@@ -65,80 +67,18 @@ def import_model(model, options):
         node hierarchy.
         '''
         bone.parent = armature.edit_bones[node.parent.name] if node.parent else None
-        bone.tail = (1, 0, 0)
-        bone.transform(node.bind_matrix)
+
+        # Apply our bind matrix with proper tail and roll.
+        tail, roll = Types.Bone.AxisRollFromMatrix(node.bind_matrix.to_3x3())
+        bone.head = node.bind_matrix.to_translation()
+        bone.tail = tail + bone.head
+        bone.roll = roll
 
         if bone.parent is not None:
             bone.use_connect = bone.parent.tail == bone.head
-            #print(bone.use_connect, node.is_removable)
+        # End If
 
-        '''
-        Get the forward, left, and up vectors of the bone (used later for determining the roll).
-        '''
-
-        '''
-        Lithtech uses a left-handed coordinate system where:
-            X+: Right
-            Y+: Up
-            Z+: Forward
-
-        Jake: Animation wise, action_hero.abc seems to use...
-        
-        Y+: Forward
-        X-: Up
-        Z+: Right
-        '''
-        (forward, right, up) = map(lambda x: -x.xyz, node.bind_matrix.col[0:3])
-
-        if node.children:
-            '''
-            This bone has children. To determine the tail position of this bone,
-            we check if all child bone head locations are sufficiently collinear to this
-            direction vector of this bone.
-            '''
-            is_collinear = True
-            collinearity_epsilon = 0.00001
-
-            for child in node.children:
-                child_dir = child.bind_matrix.translation - bone.head
-                dot_product = forward.dot(child_dir.normalized())
-                if (1.0 - dot_product) > collinearity_epsilon:
-                    is_collinear = False
-                    break
-
-            if is_collinear:
-                '''
-                All child bone head locations are collinear to the directionality of
-                the bone. Set the tail of this bone to the nearest child bone whose
-                head is not concurrent with the head of the current bone (i.e. we shouldn't have zero-length bones!)
-                '''
-                sorted_children = node.children[:]
-                sorted_children.sort(key=lambda c: (bone.head - c.bind_matrix.translation).length_squared)
-                bone.tail = sorted_children[0].bind_matrix.translation
-                # TODO: this could still be generating zero-length bones
-            else:
-                '''
-                One or more child bone head locations are not collinear. Simply project
-                the bone out along it's forward vector a reasonable distance.
-                '''
-                dot_products = map(lambda x: forward.dot(child.bind_matrix.translation - bone.head), node.children)
-                dot_products = list(filter(lambda x: x > 0, dot_products))
-                bone_length = max(options.bone_length_min,
-                                  min(dot_products) if dot_products else options.bone_length_min)
-                bone.tail = bone.head + bone_length * forward
-        else:
-            '''
-            There is no child node to connect to, so we make a guess
-            as to an appropriate length of the bone (half the length
-            of the previous bone).
-            '''
-            if bone.parent is not None:
-                bone_length = max(options.bone_length_min, bone.parent.length * 0.5)
-            else:
-                bone_length = options.bone_length_min
-            bone.tail = bone.head + bone_length * forward
-
-            # TODO: Now calculate the roll of the bone.
+    # End For
 
     Ops.object.mode_set(mode='OBJECT')
 
@@ -330,13 +270,14 @@ def import_model(model, options):
 
         armature_object.animation_data_create()
 
+        for obj in armature_object.children:
+            obj.animation_data_create()
+
         actions = []
 
         index = 0
         for animation in model.animations:
             print("Processing ", animation.name)
-            if(index > 0):
-                break
 
             index  = index + 1
             # Create a new action with the animation name
@@ -345,10 +286,13 @@ def import_model(model, options):
             # Temp set
             armature_object.animation_data.action = action
 
+            for obj in [o for o in collection.objects if o.type in {'MESH'}]:
+                obj.animation_data.action = action
+
             # For every keyframe
             for keyframe_index, keyframe in enumerate(animation.keyframes):
-                # Set keyframe time - Scale it down because it's way too slow for testing
-                Context.scene.frame_set(keyframe.time * 0.01)
+                # Set keyframe time - Scale it down to the default blender animation framerate (25fps)
+                Context.scene.frame_set(keyframe.time * 0.025)
            
                 '''
                 Recursively apply transformations to a nodes children
@@ -360,53 +304,70 @@ def import_model(model, options):
                     pose_bone = pose_bones[node_index]
                     original_index = node_index
 
-                    #print("[",node_index,"] Applying transform to : ", node.name)
-
-
                     # Get the current transform
                     transform = animation.node_keyframe_transforms[node_index][keyframe_index]
 
-                    # Correct-ish
-                    # rotation = Quaternion( (transform.rotation.w, -transform.rotation.z, -transform.rotation.x, transform.rotation.y) )
+                    mat_scale = Matrix()
 
+                    if model.version == 6 and model.flip_anim:
+                        transform.rotation.conjugate()
+                    # End
 
-                    rotation = Quaternion( (transform.rotation.w, -transform.rotation.z, -transform.rotation.x, transform.rotation.y) )
+                    # Form our animation matrix
+                    mat_rot = transform.rotation.to_matrix()
+                    mat_loc = Matrix.Translation(transform.location)
+                    matrix = mat_loc @ mat_rot.to_4x4() @ mat_scale
 
-                    matrix = rotation.to_matrix().to_4x4() # transform.rotation.to_matrix().to_4x4()
+                    # If we have a parent, make sure to apply their matrix with ours to get position relative to our parent
+                    # otherwise just use our matrix
+                    if parent_matrix != None:
+                        pose_bone.matrix = parent_matrix @ matrix
+                    else:
+                        pose_bone.matrix = matrix
 
-                    # Apply the translation
-                    matrix.Translation(transform.location.xzy)
-    
-                    
-                    # Use a matrix instead!
-                    pose_bone.matrix = parent_matrix @ matrix
-
-                    # Recursively apply our transform to our children!
-                    # print("[",node_index,"] Found children count : ", node.child_count)
-
-                    #if (node.child_count):
-                    #    print("[",original_index,"] Recurse Start --- ",node.name)
-
-                    for index in range(0, node.child_count):
+                    for _ in range(0, node.child_count):
                         node_index = node_index + 1
-                        #print("[",original_index,"] Applying transform to child : ", nodes[node_index].name)
-
                         node_index = recursively_apply_transform(nodes, node_index, pose_bones, pose_bone.matrix)
-                    
-                    #if (node.child_count):
-                    #    print("[",original_index,"] Recurse End   --- ",node.name)
 
                     return node_index
                 '''
                 Func End
                 '''
 
-                recursively_apply_transform(model.nodes, 0, armature_object.pose.bones, Matrix())
+                
+                recursively_apply_transform(model.nodes, 0, armature_object.pose.bones, None)
 
                 # For every bone
                 for bone, node in zip(armature_object.pose.bones, model.nodes):
                     bone.keyframe_insert('location')
                     bone.keyframe_insert('rotation_quaternion')
+                # End For
+
+                if options.should_import_vertex_animations:
+                    # For every vert (Thanks animation_animall!)
+                    for obj in armature_object.children:
+                        for vert_index, vert in enumerate(obj.data.vertices): 
+
+                            # Let's hope they're in the same order!
+                            our_vert_index = vert_index
+                            node_index = model.pieces[0].lods[0].vertices[our_vert_index].weights[0].node_index
+                            node = model.nodes[node_index]
+
+                            if node.md_vert_count > 0:
+                                # Find the position of the vertex we're going to deform
+                                # It's laid out flat, so we'll need to add the result of the length of verts per frame * the framecount
+                                md_vert = node.md_vert_list.index(our_vert_index) + (keyframe_index * node.md_vert_count)
+
+                                # Grab are transformed deformation
+                                vertex_transform = animation.vertex_deformations[node_index][md_vert].location
+                                vert.co = node.bind_matrix @ vertex_transform
+
+                                vert.keyframe_insert('co', group="Vertex %s" % vert_index)
+                            # End If
+                        # End For
+                    # End For
+
+            # End For
 
             # Add to actions array
             actions.append(action)
@@ -414,12 +375,20 @@ def import_model(model, options):
         # Add our actions to animation data
         armature_object.animation_data.action = actions[0]
 
+        for obj in armature_object.children:
+            obj.animation_data.action = actions[0]
+
     # Set our keyframe time to 0
     Context.scene.frame_set(0)
 
     # TODO: make an option to convert to blender coordinate system
-    # armature_object.rotation_euler.x = math.radians(90)
-    # armature_object.scale.x = -1.0
+    armature_object.rotation_euler.x = math.radians(90)
+    armature_object.scale.x = -1.0
+
+    # Apply the geometry flip in armature space
+    # This may not be the best place to do it, but it works for now!
+    if model.version == 6 or model.flip_geom:
+        armature_object.scale.z = -1.0
 
     return {'FINISHED'}
 
@@ -457,25 +426,31 @@ class ImportOperatorABC(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     )
 
     should_import_lods: BoolProperty(
-        name="Import LODs",
+        name="Import LODs (Not implemented)",
         description="When checked, LOD meshes will be imported (suffixed with .LOD0, .LOD1 etc.)",
         default=False,
     )
 
     should_import_animations: BoolProperty(
-        name="Import Animations (not yet working)",
+        name="Import Animations (Experimental)",
         description="When checked, animations will be imported as actions.",
+        default=False,
+    )
+
+    should_import_vertex_animations: BoolProperty(
+        name="Import Vertex Animations (Experimental)",
+        description="When checked, vertex animations will be imported. (Requires Import Animations.)",
         default=False,
     )
 
     should_import_sockets: BoolProperty(
         name="Import Sockets",
         description="When checked, sockets will be imported as Empty objects.",
-        default=True,
+        default=False,
     )
 
     should_merge_pieces: BoolProperty(
-        name="Merge Pieces (not yet working)",
+        name="Merge Pieces (Not implemented)",
         description="When checked, pieces that share a material index will be merged.",
         default=False,
     )
@@ -513,6 +488,7 @@ class ImportOperatorABC(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
         box = layout.box()
         box.label(text='Animations')
         box.row().prop(self, 'should_import_animations')
+        box.row().prop(self, 'should_import_vertex_animations')
 
         box = layout.box()
         box.label(text='Misc')
@@ -520,7 +496,11 @@ class ImportOperatorABC(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
 
     def execute(self, context):
         # Load the model
-        model = ABCModelReader().from_file(self.filepath)
+        try:
+            model = ABCModelReader().from_file(self.filepath)
+        except Exception as e:
+            model = ABCV6ModelReader().from_file(self.filepath)
+
         model.name = os.path.splitext(os.path.basename(self.filepath))[0]
         image = None
         if self.should_import_textures:
@@ -535,6 +515,7 @@ class ImportOperatorABC(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
         options.bone_length_min = self.bone_length_min
         options.should_import_lods = self.should_import_lods
         options.should_import_animations = self.should_import_animations
+        options.should_import_vertex_animations = self.should_import_vertex_animations
         options.should_import_sockets = self.should_import_sockets
         options.should_merge_pieces = self.should_merge_pieces
         options.should_clear_scene = self.should_clear_scene

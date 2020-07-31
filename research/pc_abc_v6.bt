@@ -1,0 +1,223 @@
+//------------------------------------------------
+//--- 010 Editor v10.0.1 Binary Template
+//
+//      File: 
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: 
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+
+//
+// Node Flags:
+// 1 = NULL
+// 2 = Rigid (Skeletal)
+// 6 = Deformation (Vertex Animation)
+// 
+
+//
+// GLOBAL HELPERS
+//
+struct LTString {
+    short stringLength;
+    char Type[stringLength];
+};
+
+struct LTNormal {
+    char x,y,z;
+};
+
+struct LTUVPair {
+    float u,v;
+};
+
+struct LTVector {
+    float x,y,z;
+};
+
+struct LTRotation {
+    float x,y,z,w;
+};
+
+//
+// SECTION INFO
+//
+struct Section {
+    LTString ChunkName;
+    uint NextChunkLocation;
+};
+
+
+//
+// HEADER INFO
+// 
+struct Header {
+    LTString FileToken;
+    LTString CommandString;
+};
+
+//
+// GEOMETRY INFO
+// 
+struct Triangle {
+    LTUVPair TexCoords1;
+    LTUVPair TexCoords2;
+    LTUVPair TexCoords3;
+    ushort VertexIndex1;
+    ushort VertexIndex2;
+    ushort VertexIndex3;
+    LTNormal FaceNormal;
+};
+
+struct Vertex {
+    LTVector Position;
+    LTNormal VertexNormal;
+    uchar TransformationIndex;
+    ushort Replacements[2];
+};
+
+
+struct Geometry {
+    LTVector BoundsMin;
+    LTVector BoundsMax;
+    uint NumLODS;
+    ushort VertexStartNum[NumLODS+1];
+    uint NumTris;
+    Triangle FaceInfo[NumTris];
+    uint NumVerts;
+    uint NormalVerts;
+    Vertex VertexInfo[NumVerts];
+};
+
+//
+// NODE INFO
+//
+
+struct Nodes {
+    LTVector BoundsMin;
+    LTVector BoundsMax;
+    LTString NodeName;
+    ushort TransformationIndex;
+    uchar Flags;
+    uint NumMDVerts; // number of vertices for mesh-deformed nodes / usually "0"
+    ushort MDVertList[NumMDVerts];
+    uint NumChildren;
+};
+
+//
+// ANIMATION INFO
+//
+struct NodeDeformationFrame {
+    uchar Position[3];
+};
+
+struct NodeKeyFrame {
+    LTVector Translation;
+    LTRotation Rotation;
+};
+
+struct NodeAnim (uint NumKeyframers, uint NumMDVerts) {
+    NodeKeyFrame NodeKeyFrameData[NumKeyframers];
+
+    if (NumMDVerts > 0)
+    {
+        NodeDeformationFrame vertexAnimation[(NumMDVerts * NumKeyframers)];
+    }
+
+    LTVector Scale;
+    LTVector Transform;
+};
+
+struct KeyFrameInfo {
+    uint TimeIndex;
+    LTVector BoundsMin;
+    LTVector BoundsMax;
+    LTString FrameString;
+};
+
+struct AnimInfo (int NumNodes) {
+    LTString AnimName;
+    uint Length;
+    LTVector BoundsMin;
+    LTVector BoundsMax;
+    uint NumKeyframers;
+    KeyFrameInfo KeyframeData[NumKeyframers] <optimize=false>;
+};
+
+struct Animation (int NumNodes) {
+    uint NumAnims;
+    
+};
+
+//
+// ANIMATION DIMS INFO
+//
+struct AnimDims (int NumAnims) {
+    LTVector Dimensions[NumAnims];
+};
+
+//
+// TRANSFORM INFO
+// 
+struct TransformInfo {
+    // This value gets set on the Model class
+    // It seems to flip the mesh inside out in some select cases
+    int FlipMat;
+    // This value (if not 0) gets applied to every keyframe
+    int FlipAnimKeyframes;
+};
+
+//
+// LET'S GO!
+//
+
+Section hdrSection;
+Header hdr;
+Section geoSection;
+Geometry geo;
+Section nodesSection;
+
+// Nodes are depth-first ordered
+// Keep track of the running total of children, 
+// once we run out we can exit the loop!
+local int nTotalNodes = 0;
+local int nChildrenLeft = 1;
+while (true)
+{
+    nTotalNodes++;
+    nChildrenLeft--;
+    Nodes node;
+    nChildrenLeft += node.NumChildren;
+    if (nChildrenLeft == 0)
+    {
+        break;
+    }
+}
+
+Section animationSection;
+Animation animation(nTotalNodes);
+
+local int i = 0;
+local int j = 0;
+for (i = 0; i < animation.NumAnims; i++)
+{
+    AnimInfo AnimData(nTotalNodes) <optimize=false>;
+    for (j = 0; j < nTotalNodes; j++)
+    {
+        NodeAnim NodeAnimData(AnimData[i].NumKeyframers, node[j].NumMDVerts) <optimize=false>;
+    }
+}
+
+
+Section animationDimsSection;
+AnimDims animDims(animation.NumAnims);
+
+// Check for LithTech 1.5 specific info!
+if (animationDimsSection.NextChunkLocation != 4294967295)
+{
+    Section transformInfoSection;
+    TransformInfo transformInfo;
+}

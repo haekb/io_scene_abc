@@ -107,6 +107,10 @@ class Node(object):
         self.flags = 0
         self.bind_matrix = Matrix()
         self.child_count = 0
+
+        # Version 6 specific
+        self.md_vert_count = 0
+        self.md_vert_list = []
     
     def __repr__(self):
         return self.name
@@ -128,6 +132,13 @@ class Socket(object):
 
 class Animation(object):
     class Keyframe(object):
+
+        # We only care about location for Vertex transforms
+        class VertexTransform(object):
+            def __init__(self):
+                self.location = Vector()
+        # End Class
+
         class Transform(object):
             def __init__(self):
                 self.location = Vector()
@@ -153,6 +164,15 @@ class Animation(object):
         self.keyframes = []
         self.node_keyframe_transforms = []
 
+        # Version 6 specific
+
+        # Note this should line up with md_vert_list, and go on for md_vert_count * keyframe_count
+        # List of 3 chars (verts)
+        self.vertex_deformations = []
+        # List of Vector (verts)
+        # Scaled by the animation bounding box
+        self.transformed_vertex_deformations = []
+
 
 class AnimBinding(object):
     def __init__(self):
@@ -170,6 +190,7 @@ class ChildModel(object):
 
 class Model(object):
     def __init__(self):
+        self.version = 0
         self.name = ''
         self.pieces = []
         self.nodes = []
@@ -181,6 +202,16 @@ class Model(object):
         self.lod_distances = []
         self.weight_sets = []
         self.anim_bindings = []
+        
+        # ABC v6 specific
+
+        # By default it's true, this is only used when self.version == 6!
+
+        # Flip geomtry
+        self.flip_geom = True
+
+        # Flip animation keyframes
+        self.flip_anim = True
         
     @property
     def keyframe_count(self):

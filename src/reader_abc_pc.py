@@ -150,6 +150,7 @@ class ABCModelReader(object):
                     self._version = unpack('I', f)[0]
                     if self._version not in [9, 10, 11, 12]:
                         raise Exception('Unsupported file version ({}).'.format(self._version))
+                    model.version = self._version
                     f.seek(8, 1)
                     self._node_count = unpack('I', f)[0]
                     f.seek(20, 1)
