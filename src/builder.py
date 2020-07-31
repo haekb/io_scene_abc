@@ -1,50 +1,6 @@
 from .abc import *
-from math import pi
+from math import pi, radians
 from mathutils import Vector, Matrix, Quaternion, Euler
-
-# Compared against hero_action.lta and shifted things left, wrapped 0, to 2
-# and added proper flips.
-def convert_blender_matrix_to_lt_matrix(mat):
-    new_mat = Matrix()
-
-    new_mat[0][0] = -mat[0][1]
-    new_mat[0][1] = mat[0][2]
-    new_mat[0][2] = -mat[0][0]
-
-    new_mat[1][0] = -mat[1][1]
-    new_mat[1][1] = mat[1][2]
-    new_mat[1][2] = -mat[1][0]
-
-    new_mat[2][0] = -mat[2][1]
-    new_mat[2][1] = mat[2][2]
-    new_mat[2][2] = -mat[2][0]
-
-    # This is just 0,0,0,1, so can't really test out where the -1 goes.
-    new_mat[3][0] = mat[3][1]
-    new_mat[3][1] = mat[3][2]
-    new_mat[3][2] = mat[3][0] 
-
-
-    # Just apply the translation
-    trans = mat.to_translation()
-    new_mat.translation = trans
-    
-
-
-    return new_mat
-
-
-def process_matrix(matrix, rot, first_bone = False):
-    # Convert the quaternion, and apply the translation!
-
-    mat = rot.to_matrix().to_4x4()
-    mat.translation = matrix.to_translation()
-    mat = convert_blender_matrix_to_lt_matrix(mat)
-
-    return mat
-
-
-
 
 class ModelBuilder(object):
     def __init__(self):
@@ -105,12 +61,12 @@ class ModelBuilder(object):
             for (vertex_index, vertex) in enumerate(mesh.vertices):
                 weights = []
                 for vertex_group in mesh_object.vertex_groups:
-                    #pass
-                    # FIXME: Re-enable this once we figure out skeletons
-                    # BUG: Location not used?
+                    
+                    # Location is used in Lithtech 2.0 games, but is not in ModelEdit.
                     try:
                         bias = vertex_group.weight(vertex_index)
                         bone = vertex_group_nodes[vertex_group]
+
                         bone_matrix = armature_object.matrix_world @ bone.matrix_local
 
                         location = (vertex.co @ mesh_object.matrix_world) @ bone_matrix.transposed().inverted()
@@ -123,8 +79,12 @@ class ModelBuilder(object):
                     except RuntimeError:
                         pass
 
-                v = Vertex()
-                v.location = vertex.undeformed_co
+
+                # Note: This corrects any rotation done on import
+                rot = Matrix.Rotation(radians(-180), 4, 'Z') @ Matrix.Rotation(radians(90), 4, 'X')  
+
+                v = Vertex()                
+                v.location = vertex.co @ rot
                 v.normal = vertex.normal
                 v.weights.extend(weights)
                 lod.vertices.append(v)
@@ -158,19 +118,9 @@ class ModelBuilder(object):
             if bone_index == 0:  # DEBUG: set removable?
                 node.is_removable = True
 
-            #print("Raw", node.name, bone.matrix_local)
-
             matrix = armature_object.matrix_world @ bone.matrix_local
 
-            # TODO: matrix local might be relative to previous bone?
-            # TODO: Jake: Maybe! But probably not like this...
-            # if bone.parent is not None:
-            #     parent_matrix = armature_object.matrix_world @ bone.parent.matrix_local
-            #     matrix @= parent_matrix
-
-            local_rot = matrix.to_quaternion()
-
-            node.bind_matrix = process_matrix(bone.matrix_local, local_rot, bone.parent == None)
+            node.bind_matrix = matrix #bone.matrix_local
 
             #print("Processed", node.name, node.bind_matrix)
             node.child_count = len(bone.children)
@@ -198,21 +148,15 @@ class ModelBuilder(object):
             for _ in animation.keyframes:
                 transform = Animation.Keyframe.Transform()
 
-                matrix = armature_object.matrix_world @ pose_bone.matrix
-                local_rot =  pose_bone.matrix.to_quaternion()
+                matrix = pose_bone.matrix
 
-                #if pose_bone.parent is not None:
-                #    parent_matrix = armature_object.matrix_world @ pose_bone.parent.matrix_local
-                #    matrix = parent_matrix.inverted() @ matrix
+                # Apply the inverse parent bone matrix to get relative positioning
+                if pose_bone.parent != None:
+                    matrix = pose_bone.parent.matrix.inverted() @ matrix
+                # End If
 
+                transform.matrix = matrix
 
-
-
-                # FIXME: This produces garbled animations
-                transform.matrix =  process_matrix(matrix, local_rot)
-                #print(pose_bone.location)
-                #transform.location = pose_bone.location
-                #transform.rotation = pose_bone.rotation_quaternion
                 transforms.append(transform)
             animation.node_keyframe_transforms.append(transforms)
         model.animations.append(animation)
