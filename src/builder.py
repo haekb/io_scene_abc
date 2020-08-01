@@ -193,6 +193,10 @@ class ModelBuilder(object):
                 elif 'location' in fcurve.data_path:
                     current_type = 'location'
                     current_skip_count = 3   
+                elif 'scale' in fcurve.data_path:
+                    current_skip_count = 3
+                    fcurve_index += current_skip_count
+                    continue
                 # End If
 
                 # Assume if one part of the transform changes, the entire thing changes
