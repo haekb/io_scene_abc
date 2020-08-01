@@ -284,8 +284,9 @@ struct AnimationHeader {
 };
 
 struct KeyFrame {
-    ushort Time;
-    uint32 Padding;
+    uint32 Time;
+    short StringCount;
+    char String[StringCount];
 };
 
 
@@ -321,14 +322,16 @@ struct Animation (uint32 nodeCount) {
     uint32 Unk;
     uint32 InterpolationTime;
     uint32 KeyFrameCount;
-    KeyFrame KeyFrames[KeyFrameCount];
+    KeyFrame KeyFrames[KeyFrameCount] <optimize=false>;
+    //uint32 Unk2;
     
     // Maybe they're just compressed?
-    CVector3 Locations[KeyFrameCount];
-    CQuat Rotations[KeyFrameCount];
+    //CVector3 Locations[KeyFrameCount];
+    //CQuat Rotations[KeyFrameCount];
+
 
     //short test;
-    //NodeKeyframe Nodes(KeyFrameCount)[nodeCount];
+    NodeKeyframe Nodes(KeyFrameCount)[nodeCount] <optimize=false>;
 };//5052
 
 struct WeightHeader {
@@ -421,7 +424,8 @@ local int pad = 0;
 // Commented out so I can work on non-geom stuff
 
 // Okay, let's loop through the pieces
-for(i = 0; i < pieceInfo.PieceCount; i++)
+//for(i = 0; i < pieceInfo.PieceCount; i++)
+if (false)
 {
     Printf("----------\nNew Piece\n");
 
@@ -630,7 +634,9 @@ ChildModel ChildModels[info.ChildModelCount - 1] <optimize=false>;
 FSeek(hdr.AnimationOffset);
 AnimationHeader animationHdr;
 
-//Animation animation(info.NodeCount)[info.AnimationCount] <optimize=false>;
+// 162 bytes per animation for poodle
+
+Animation animation(info.NodeCount)[info.AnimationCount] <optimize=false>;
 
 
 
