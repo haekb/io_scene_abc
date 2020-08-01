@@ -228,6 +228,9 @@ class PS2LTBModelReader(object):
         # Hack to count sockets
         self._socket_counter = 0
 
+        # Hack to count animation names
+        self._animations_processed = 0
+
     # Leftovers from ABC Model Reader
     def _read_matrix(self, f):
         data = unpack('16f', f)
@@ -304,9 +307,28 @@ class PS2LTBModelReader(object):
         return node
 
     def _read_transform(self, f):
+
         transform = Animation.Keyframe.Transform()
-        transform.location = self._read_vector(f)
-        transform.rotation = self._read_quaternion(f)
+
+        # Always 0xFFFFFFFF?
+        
+        padding = unpack('H', f)[0]
+
+        location = unpack('3H', f)
+        rotation = unpack('4H', f)
+
+        # Transform the values
+        MAX = 16384
+
+        transform.location.x = location[0] / MAX
+        transform.location.y = location[1] / MAX
+        transform.location.z = location[2] / MAX
+
+        transform.rotation.x = rotation[0] / MAX
+        transform.rotation.y = rotation[1] / MAX
+        transform.rotation.z = rotation[2] / MAX
+        transform.rotation.w = rotation[3] / MAX
+
         return transform
 
     def _read_child_model(self, f):
@@ -324,17 +346,24 @@ class PS2LTBModelReader(object):
 
     def _read_animation(self, f):
         animation = Animation()
+        animation.name = "Animation_%d" % self._animations_processed
         animation.extents = self._read_vector(f)
-        animation.name = self._read_string(f)
-        animation.unknown1 = unpack('i', f)[0]
-        animation.interpolation_time = unpack('I', f)[0] if self._version >= 12 else 200
+
+        unknown_vector_maybe = self._read_vector(f)
+        animation.unknown1 = unpack('I', f)[0]
+        animation.interpolation_time = unpack('I', f)[0]
         animation.keyframe_count = unpack('I', f)[0]
         animation.keyframes = [self._read_keyframe(f) for _ in range(animation.keyframe_count)]
         animation.node_keyframe_transforms = []
         for _ in range(self._node_count):
+            start_marker = unpack('I', f)[0]
             animation.node_keyframe_transforms.append(
                 [self._read_transform(f) for _ in range(animation.keyframe_count)])
+
+        self._animations_processed += 1
+
         return animation
+    # End Function
 
     
     def _read_socket(self, f):
@@ -410,7 +439,7 @@ class PS2LTBModelReader(object):
             # Model Info
             keyframe_count = unpack('i', f)[0]
             animation_count = unpack('i', f)[0]
-            node_count = unpack('i', f)[0]
+            self._node_count = unpack('i', f)[0]
             piece_count = unpack('i', f)[0]
             child_model_count = unpack('i', f)[0]
             triangle_count = unpack('i', f)[0]
@@ -859,14 +888,16 @@ class PS2LTBModelReader(object):
             print("Final verticies ", len(lod.vertices))
             print("Final faces ", len(lod.faces))
 
-            # Let's seek to node offset
-            f.seek(node_offset)
-
             # Handle Nodes!
             f.seek(node_offset)
 
-            model.nodes = [self._read_node(f) for _ in range(node_count)]
+            model.nodes = [self._read_node(f) for _ in range(self._node_count)]
             build_undirected_tree(model.nodes)
+
+            # Handle Animations!
+            f.seek(animation_offset)
+            local_animation_count = unpack('I', f)[0]
+            model.animations = [self._read_animation(f) for _ in range(local_animation_count)]
 
             # Handle Sockets!
             f.seek(socket_offset)
