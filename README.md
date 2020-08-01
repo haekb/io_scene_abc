@@ -9,7 +9,7 @@ This addon provides limited support for importing and exporting various Lithtech
 Format | Import | Export
 --- | --- | ---
 ABC | Rigid and Skeletal | Limited
-LTA | No | Limited
+LTA | No | Rigid and Skeletal
 LTB (PS2) | Limited | No
 LTB (PC) | No | No
 
