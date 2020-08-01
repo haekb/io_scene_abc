@@ -136,8 +136,6 @@ class ModelBuilder(object):
             child_model.transforms.append(Animation.Keyframe.Transform())
         model.child_models.append(child_model)
 
-
-
         # This is only one action fyi!
         fcurves = armature_object.animation_data.action.fcurves
 
@@ -197,10 +195,17 @@ class ModelBuilder(object):
         animation.name = 'base'
         animation.extents = Vector((10, 10, 10))
 
-        # FIXME: Hacks
-        stop_appending_keyframes = False
-        last_keyframe_time = -1
+        # First let's setup our keyframes
+        # For now we can just use the first node!
+        for time in keyframe_timings[model.nodes[0].name]['rotation_quaternion']:
+            # Expand our time
+            scaled_time = time * (1.0/0.025)
 
+            keyframe = Animation.Keyframe()
+            keyframe.time = scaled_time
+            animation.keyframes.append(keyframe)
+
+        # Okay let's start processing our transforms!
         for node_index, (node, pose_bone) in enumerate(zip(model.nodes, armature_object.pose.bones)):
             print("Processing animation transforms for %s" % pose_bone.name)
             transforms = list()
@@ -212,16 +217,7 @@ class ModelBuilder(object):
             for time in keyframe_timing['rotation_quaternion']:
                 # Expand our time
                 scaled_time = time * (1.0/0.025)
-                bpy.context.scene.frame_set(scaled_time)
-
-                if stop_appending_keyframes == False and last_keyframe_time != -1 and scaled_time == 0:
-                    stop_appending_keyframes = True
-
-                if stop_appending_keyframes == False:
-                    keyframe = Animation.Keyframe()
-                    keyframe.time = scaled_time
-                    animation.keyframes.append(keyframe)
-                    last_keyframe_time = scaled_time
+                bpy.context.scene.frame_set(time)
 
                 transform = Animation.Keyframe.Transform()
 
