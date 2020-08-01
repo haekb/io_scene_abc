@@ -1,54 +1,31 @@
 from .abc import *
-from math import pi
+from math import pi, radians
 from mathutils import Vector, Matrix, Quaternion, Euler
-
-# Compared against hero_action.lta and shifted things left, wrapped 0, to 2
-# and added proper flips.
-def convert_blender_matrix_to_lt_matrix(mat):
-    new_mat = Matrix()
-
-    new_mat[0][0] = -mat[0][1]
-    new_mat[0][1] = mat[0][2]
-    new_mat[0][2] = -mat[0][0]
-
-    new_mat[1][0] = -mat[1][1]
-    new_mat[1][1] = mat[1][2]
-    new_mat[1][2] = -mat[1][0]
-
-    new_mat[2][0] = -mat[2][1]
-    new_mat[2][1] = mat[2][2]
-    new_mat[2][2] = -mat[2][0]
-
-    # This is just 0,0,0,1, so can't really test out where the -1 goes.
-    new_mat[3][0] = mat[3][1]
-    new_mat[3][1] = mat[3][2]
-    new_mat[3][2] = mat[3][0] 
-
-
-    # Just apply the translation
-    trans = mat.to_translation()
-    new_mat.translation = trans
-    
-
-
-    return new_mat
-
-
-def process_matrix(matrix, rot, first_bone = False):
-    # Convert the quaternion, and apply the translation!
-
-    mat = rot.to_matrix().to_4x4()
-    mat.translation = matrix.to_translation()
-    mat = convert_blender_matrix_to_lt_matrix(mat)
-
-    return mat
-
-
-
+import bpy
 
 class ModelBuilder(object):
     def __init__(self):
         pass
+
+    #
+    # Set Keyframe Timings
+    # Handles setting up the dictionary struct if it's the first time through a particular bone.
+    # 
+    @staticmethod
+    def set_keyframe_timings(keyframe_dictionary, bone, time, transform_type):
+        # Set up the small struct, if it's not already done
+        if bone not in keyframe_dictionary:
+            keyframe_dictionary[bone] = {
+                'rotation_quaternion': [],
+                'location': []
+            }
+        # End If
+
+        # Append our key time
+        keyframe_dictionary[bone][transform_type].append(time)
+
+        return keyframe_dictionary
+    # End Function
 
     @staticmethod
     def from_armature(armature_object):
@@ -105,12 +82,12 @@ class ModelBuilder(object):
             for (vertex_index, vertex) in enumerate(mesh.vertices):
                 weights = []
                 for vertex_group in mesh_object.vertex_groups:
-                    #pass
-                    # FIXME: Re-enable this once we figure out skeletons
-                    # BUG: Location not used?
+                    
+                    # Location is used in Lithtech 2.0 games, but is not in ModelEdit.
                     try:
                         bias = vertex_group.weight(vertex_index)
                         bone = vertex_group_nodes[vertex_group]
+
                         bone_matrix = armature_object.matrix_world @ bone.matrix_local
 
                         location = (vertex.co @ mesh_object.matrix_world) @ bone_matrix.transposed().inverted()
@@ -123,8 +100,12 @@ class ModelBuilder(object):
                     except RuntimeError:
                         pass
 
-                v = Vertex()
-                v.location = vertex.undeformed_co
+
+                # Note: This corrects any rotation done on import
+                rot = Matrix.Rotation(radians(-180), 4, 'Z') @ Matrix.Rotation(radians(90), 4, 'X')  
+
+                v = Vertex()                
+                v.location = vertex.co @ rot
                 v.normal = vertex.normal
                 v.weights.extend(weights)
                 lod.vertices.append(v)
@@ -158,19 +139,9 @@ class ModelBuilder(object):
             if bone_index == 0:  # DEBUG: set removable?
                 node.is_removable = True
 
-            #print("Raw", node.name, bone.matrix_local)
-
             matrix = armature_object.matrix_world @ bone.matrix_local
 
-            # TODO: matrix local might be relative to previous bone?
-            # TODO: Jake: Maybe! But probably not like this...
-            # if bone.parent is not None:
-            #     parent_matrix = armature_object.matrix_world @ bone.parent.matrix_local
-            #     matrix @= parent_matrix
-
-            local_rot = matrix.to_quaternion()
-
-            node.bind_matrix = process_matrix(bone.matrix_local, local_rot, bone.parent == None)
+            node.bind_matrix = matrix #bone.matrix_local
 
             #print("Processed", node.name, node.bind_matrix)
             node.child_count = len(bone.children)
@@ -186,36 +157,97 @@ class ModelBuilder(object):
         model.child_models.append(child_model)
 
         ''' Animations '''
-        # TODO: Until we can extract the action information out, we need to
-        # make a "fake" animation with one keyframe with transforms matching
-        # the "bind" pose.
-        animation = Animation()
-        animation.name = 'base'
-        animation.extents = Vector((10, 10, 10))
-        animation.keyframes.append(Animation.Keyframe())
-        for node_index, (node, pose_bone) in enumerate(zip(model.nodes, armature_object.pose.bones)):
-            transforms = list()
-            for _ in animation.keyframes:
-                transform = Animation.Keyframe.Transform()
+        for action in bpy.data.actions:
+            print("Processing animation %s" % action.name)
+            animation = Animation()
+            animation.name = action.name
+            animation.extents = Vector((10, 10, 10))
 
-                matrix = armature_object.matrix_world @ pose_bone.matrix
-                local_rot =  pose_bone.matrix.to_quaternion()
+            armature_object.animation_data.action = action
 
-                #if pose_bone.parent is not None:
-                #    parent_matrix = armature_object.matrix_world @ pose_bone.parent.matrix_local
-                #    matrix = parent_matrix.inverted() @ matrix
+            # This is only one action fyi!
+            fcurves = armature_object.animation_data.action.fcurves
 
+            # Keyframe dictionary
+            # Stores the keyframe timings
+            keyframe_timings = {}
 
+            # How much we need to skip, because we already loaded the next n fcurves
+            current_skip_count = 0
 
+            fcurve_index = 0
+            fcurves_count = len(fcurves)
 
-                # FIXME: This produces garbled animations
-                transform.matrix =  process_matrix(matrix, local_rot)
-                #print(pose_bone.location)
-                #transform.location = pose_bone.location
-                #transform.rotation = pose_bone.rotation_quaternion
-                transforms.append(transform)
-            animation.node_keyframe_transforms.append(transforms)
-        model.animations.append(animation)
+            # Loop through every fcurve,
+            # these are basically keyed parts of a transformation
+            while fcurve_index < fcurves_count:
+                current_type = 'unknown'
+                current_skip_count = 0
+
+                fcurve = fcurves[fcurve_index]
+                bone_name = fcurve.data_path.split("\"")[1]
+
+                if 'rotation_quaternion' in fcurve.data_path:
+                    current_type = 'rotation_quaternion'
+                    current_skip_count = 4
+                elif 'location' in fcurve.data_path:
+                    current_type = 'location'
+                    current_skip_count = 3   
+                # End If
+
+                # Assume if one part of the transform changes, the entire thing changes
+                for keyframe in fcurve.keyframe_points:
+                    ModelBuilder.set_keyframe_timings(keyframe_timings, bone_name, keyframe.co.x, current_type)
+                # End For
+
+                # Make sure we don't have any unknown types
+                # TODO: We should probably support other rotation types in the future...
+                assert(current_type != 'unknown')
+
+                fcurve_index += current_skip_count
+            # End For
+
+            # First let's setup our keyframes
+            # For now we can just use the first node!
+            for time in keyframe_timings[model.nodes[0].name]['rotation_quaternion']:
+                # Expand our time
+                scaled_time = time * (1.0/0.025)
+
+                keyframe = Animation.Keyframe()
+                keyframe.time = scaled_time
+                animation.keyframes.append(keyframe)
+
+            # Okay let's start processing our transforms!
+            for node_index, (node, pose_bone) in enumerate(zip(model.nodes, armature_object.pose.bones)):
+                transforms = list()
+
+                keyframe_timing = keyframe_timings[pose_bone.name]
+                
+                # FIXME: In the future we may trim off timing with no rotation/location changes
+                # So we'd have to loop through each keyframe timing, but for now this should work!
+                for time in keyframe_timing['rotation_quaternion']:
+                    # Expand our time
+                    scaled_time = time * (1.0/0.025)
+                    bpy.context.scene.frame_set(time)
+
+                    transform = Animation.Keyframe.Transform()
+
+                    matrix = pose_bone.matrix
+
+                    # Apply the inverse parent bone matrix to get relative positioning
+                    if pose_bone.parent != None:
+                        matrix = pose_bone.parent.matrix.inverted() @ matrix
+                    # End If
+
+                    transform.matrix = matrix
+
+                    transforms.append(transform)
+                # End For
+                animation.node_keyframe_transforms.append(transforms)
+            # End For
+
+            model.animations.append(animation)
+        # End For
 
         ''' AnimBindings '''
         anim_binding = AnimBinding()
