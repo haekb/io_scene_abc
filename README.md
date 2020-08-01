@@ -19,9 +19,6 @@ Additional format information can be found in [here](https://github.com/haekb/io
 
 ![](https://raw.githubusercontent.com/haekb/io_scene_lithtech/master/doc/readme/example.png)
 
-## Known Issues
-Though the animation data format is known, this plugin does not yet support the importing or exporting of animations.
-
 ## Credits
 * **Colin Basnett** - Programming
 * **ReindeerFloatilla** - Research
