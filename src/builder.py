@@ -1,6 +1,7 @@
 from .abc import *
 from math import pi, radians
 from mathutils import Vector, Matrix, Quaternion, Euler
+import bpy
 
 class ModelBuilder(object):
     def __init__(self):
@@ -135,6 +136,59 @@ class ModelBuilder(object):
             child_model.transforms.append(Animation.Keyframe.Transform())
         model.child_models.append(child_model)
 
+
+
+        # This is only one action fyi!
+        fcurves = armature_object.animation_data.action.fcurves
+
+        current_skip_count = 0
+
+        # FIXME: This is pretty bad rn, haha
+        keyframe_timings = {}
+        def set_keyframe_timings(bone, time, transform_type):
+
+            # Set up the small struct, if it's not already done
+            if bone not in keyframe_timings:
+                keyframe_timings[bone] = {
+                    'rotation_quaternion': [],
+                    'location': []
+                }
+            # End If
+
+            # Append our key time
+            keyframe_timings[bone][transform_type].append(time)
+        # End Function
+
+        fcurve_index = 0
+        #for fcurve_index in range(len(fcurves)):
+        fcurves_count = len(fcurves)
+        while fcurve_index < fcurves_count:
+            current_type = 'unknown'
+            current_skip_count = 0
+
+            fcurve = fcurves[fcurve_index]
+            bone_name = fcurve.data_path.split("\"")[1]
+
+            if 'rotation_quaternion' in fcurve.data_path:
+                current_type = 'rotation_quaternion'
+                current_skip_count = 4
+            elif 'location' in fcurve.data_path:
+                current_type = 'location'
+                current_skip_count = 3   
+            # End If
+
+            # Assume if one part of the transform changes, the entire thing changes
+            for keyframe in fcurve.keyframe_points:
+                set_keyframe_timings(bone_name, keyframe.co.x, current_type)
+            # End For
+
+            # Make sure we don't have any unknown types
+            # TODO: We should probably support other rotation types in the future...
+            assert(current_type != 'unknown')
+
+            fcurve_index += current_skip_count
+        # End For
+
         ''' Animations '''
         # TODO: Until we can extract the action information out, we need to
         # make a "fake" animation with one keyframe with transforms matching
@@ -142,10 +196,33 @@ class ModelBuilder(object):
         animation = Animation()
         animation.name = 'base'
         animation.extents = Vector((10, 10, 10))
-        animation.keyframes.append(Animation.Keyframe())
+
+        # FIXME: Hacks
+        stop_appending_keyframes = False
+        last_keyframe_time = -1
+
         for node_index, (node, pose_bone) in enumerate(zip(model.nodes, armature_object.pose.bones)):
+            print("Processing animation transforms for %s" % pose_bone.name)
             transforms = list()
-            for _ in animation.keyframes:
+
+            keyframe_timing = keyframe_timings[pose_bone.name]
+            
+            # FIXME: In the future we may trim off timing with no rotation/location changes
+            # So we'd have to loop through each keyframe timing, but for now this should work!
+            for time in keyframe_timing['rotation_quaternion']:
+                # Expand our time
+                scaled_time = time * (1.0/0.025)
+                bpy.context.scene.frame_set(scaled_time)
+
+                if stop_appending_keyframes == False and last_keyframe_time != -1 and scaled_time == 0:
+                    stop_appending_keyframes = True
+
+                if stop_appending_keyframes == False:
+                    keyframe = Animation.Keyframe()
+                    keyframe.time = scaled_time
+                    animation.keyframes.append(keyframe)
+                    last_keyframe_time = scaled_time
+
                 transform = Animation.Keyframe.Transform()
 
                 matrix = pose_bone.matrix
@@ -158,7 +235,10 @@ class ModelBuilder(object):
                 transform.matrix = matrix
 
                 transforms.append(transform)
+            # End For
             animation.node_keyframe_transforms.append(transforms)
+        # End For
+
         model.animations.append(animation)
 
         ''' AnimBindings '''
