@@ -377,32 +377,32 @@ class LTAModelWriter(object):
             as_node = root_node.create_child('animset', animation.name)
 
 
+            # Nested keyframe nodes..I didn't build this spec, but I can sure give it a look.
+            keyframe_node = as_node.create_child('keyframe')
+            keyframe2_node = keyframe_node.create_child('keyframe')
+
+            times_node = keyframe2_node.create_child('times')
+            values_node = keyframe2_node.create_child('values')
+
+            # Keyframe timing
+            times_list = []
+            # Keyframe strings
+            values_list = []
+
             for keyframe in animation.keyframes:
-                # Nested keyframe nodes..I didn't build this spec, but I can sure give it a look.
-                keyframe_node = as_node.create_child('keyframe')
-                keyframe2_node = keyframe_node.create_child('keyframe')
+                times_list.append( keyframe.time )
 
-                times_node = keyframe2_node.create_child('times')
-                values_node = keyframe2_node.create_child('values')
+                if keyframe.string is None:
+                    keyframe.string = ""
 
-                # Keyframe timing
-                times_list = []
-                # Keyframe strings
-                values_list = []
-
-                for keyframe in animation.keyframes:
-                    times_list.append( keyframe.time )
-
-                    if keyframe.string is None:
-                        keyframe.string = ""
-
-                    values_list.append( keyframe.string )
-                # End For
-
-                # Append the properties!
-                times_node.create_property( times_list )
-                values_node.create_property( values_list ) 
+                values_list.append( keyframe.string )
             # End For
+
+            # Append the properties!
+            times_node.create_property( times_list )
+            values_node.create_property( values_list ) 
+
+            ###
 
             anims_node = as_node.create_child('anims')
             anims_container_node = anims_node.create_container()
