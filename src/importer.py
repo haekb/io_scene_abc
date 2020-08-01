@@ -607,9 +607,9 @@ class ImportOperatorLTB(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
         # box.row().prop(self, 'should_import_textures')
         # # box.row().prop(self, 'should_assign_materials')
 
-        # box = layout.box()
-        # box.label(text='Animations')
-        # box.row().prop(self, 'should_import_animations')
+        box = layout.box()
+        box.label(text='Animations')
+        box.row().prop(self, 'should_import_animations')
 
         box = layout.box()
         box.label(text='Misc')
@@ -637,6 +637,7 @@ class ImportOperatorLTB(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
         options.bone_length_min = self.bone_length_min
         options.should_import_lods = self.should_import_lods
         options.should_import_animations = self.should_import_animations
+        options.should_import_vertex_animations = False
         options.should_import_sockets = self.should_import_sockets
         options.should_merge_pieces = self.should_merge_pieces
         options.should_clear_scene = self.should_clear_scene
