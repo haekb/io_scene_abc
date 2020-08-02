@@ -289,11 +289,23 @@ struct KeyFrame {
     char String[StringCount];
 };
 
+struct ThreeByte {
+    short x;
+    char xPlus;
+    short y;
+    char yPlus;
+    short z;
+    char zPlus;
+};
+
 
 
 struct CompressedFrame {
-    short Padding;
+    // Scale by 0x1000 if flag is 0
+    // Scale by 0x10 if flag is 1
     short Location[3]; 
+    short LocationScaleFlag;
+    // Scale by 0x4000
     short Rotation[4]; 
 };
 
