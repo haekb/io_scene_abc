@@ -310,24 +310,26 @@ class PS2LTBModelReader(object):
 
         transform = Animation.Keyframe.Transform()
 
-        # Always 0xFFFFFFFF?
-        
-        padding = unpack('H', f)[0]
+        # Unpack and transform the values
+        location = unpack('3h', f)
+        location_small_scale = unpack('h', f)[0] # Flag
+        rotation = unpack('4h', f)
 
-        location = unpack('3H', f)
-        rotation = unpack('4H', f)
+        # Constants..kinda. If location small scale is 0, then SCALE_LOC can change.
+        SCALE_ROT = 0x4000
+        SCALE_LOC = 0x10
 
-        # Transform the values
-        MAX = 16384
+        if location_small_scale == 0:
+            SCALE_LOC = 0x1000
 
-        transform.location.x = location[0] / MAX
-        transform.location.y = location[1] / MAX
-        transform.location.z = location[2] / MAX
+        transform.location.x = location[0] / SCALE_LOC
+        transform.location.y = location[1] / SCALE_LOC
+        transform.location.z = location[2] / SCALE_LOC
 
-        transform.rotation.x = rotation[0] / MAX
-        transform.rotation.y = rotation[1] / MAX
-        transform.rotation.z = rotation[2] / MAX
-        transform.rotation.w = rotation[3] / MAX
+        transform.rotation.x = rotation[0] / SCALE_ROT
+        transform.rotation.y = rotation[1] / SCALE_ROT
+        transform.rotation.z = rotation[2] / SCALE_ROT
+        transform.rotation.w = rotation[3] / SCALE_ROT
 
         return transform
 
