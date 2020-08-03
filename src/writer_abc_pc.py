@@ -137,7 +137,7 @@ class ABCModelWriter(object):
             buffer.extend(struct.pack('I', animation.interpolation_time))
             buffer.extend(struct.pack('I', len(animation.keyframes)))
             for keyframe in animation.keyframes:
-                buffer.extend(struct.pack('I', keyframe.time))
+                buffer.extend(struct.pack('I', int(keyframe.time)))
                 buffer.extend(self._string_to_bytes(keyframe.string))
             for node_keyframe_transform_list in animation.node_keyframe_transforms:
                 for keyframe_transform in node_keyframe_transform_list:
