@@ -150,7 +150,7 @@ struct LODSkeletal {
 // End LOD Zone!
 
 struct ModelInfoExtended {
-    uint32 WeightCount; // ??
+    uint32 HashValue; // Use rezCalcHash (from ps2rezdecoder) function with this value.
     uint32 unk1;
     uint32 unk2;
 };
@@ -265,7 +265,7 @@ struct Socket {
     Vector3 location;
     uint32 padding;
     uint32 nodeIndex;
-    uint32 unk2;
+    uint32 hashedString;
     uint32 unk3;
 };
 
@@ -284,15 +284,28 @@ struct AnimationHeader {
 };
 
 struct KeyFrame {
-    ushort Time;
-    uint32 Padding;
+    uint32 Time;
+    short StringCount;
+    char String[StringCount];
+};
+
+struct ThreeByte {
+    short x;
+    char xPlus;
+    short y;
+    char yPlus;
+    short z;
+    char zPlus;
 };
 
 
 
 struct CompressedFrame {
-    short Padding;
+    // Scale by 0x1000 if flag is 0
+    // Scale by 0x10 if flag is 1
     short Location[3]; 
+    short LocationScaleFlag;
+    // Scale by 0x4000
     short Rotation[4]; 
 };
 
@@ -318,17 +331,19 @@ struct NodeKeyframe (uint32 Count)
 struct Animation (uint32 nodeCount) {
     Vector3 Dims;
     Vector3 Translation;
-    uint32 Unk;
+    uint32 HashedString;
     uint32 InterpolationTime;
     uint32 KeyFrameCount;
-    KeyFrame KeyFrames[KeyFrameCount];
+    KeyFrame KeyFrames[KeyFrameCount] <optimize=false>;
+    //uint32 Unk2;
     
     // Maybe they're just compressed?
-    CVector3 Locations[KeyFrameCount];
-    CQuat Rotations[KeyFrameCount];
+    //CVector3 Locations[KeyFrameCount];
+    //CQuat Rotations[KeyFrameCount];
+
 
     //short test;
-    //NodeKeyframe Nodes(KeyFrameCount)[nodeCount];
+    NodeKeyframe Nodes(KeyFrameCount)[nodeCount] <optimize=false>;
 };//5052
 
 struct WeightHeader {
@@ -421,7 +436,8 @@ local int pad = 0;
 // Commented out so I can work on non-geom stuff
 
 // Okay, let's loop through the pieces
-for(i = 0; i < pieceInfo.PieceCount; i++)
+//for(i = 0; i < pieceInfo.PieceCount; i++)
+if (false)
 {
     Printf("----------\nNew Piece\n");
 
@@ -630,7 +646,9 @@ ChildModel ChildModels[info.ChildModelCount - 1] <optimize=false>;
 FSeek(hdr.AnimationOffset);
 AnimationHeader animationHdr;
 
-//Animation animation(info.NodeCount)[info.AnimationCount] <optimize=false>;
+// 162 bytes per animation for poodle
+
+Animation animation(info.NodeCount)[info.AnimationCount] <optimize=false>;
 
 
 

@@ -5,6 +5,7 @@ from mathutils import Vector, Matrix, Quaternion
 from functools import cmp_to_key
 import math
 import copy
+from .hash_ps2 import HashLookUp
 
 #########################################################################################
 # PS2 LTB Model Reader by Jake Breen
@@ -228,6 +229,11 @@ class PS2LTBModelReader(object):
         # Hack to count sockets
         self._socket_counter = 0
 
+        # Hack to count animation names
+        self._animations_processed = 0
+
+        self._hasher = None
+
     # Leftovers from ABC Model Reader
     def _read_matrix(self, f):
         data = unpack('16f', f)
@@ -304,9 +310,30 @@ class PS2LTBModelReader(object):
         return node
 
     def _read_transform(self, f):
+
         transform = Animation.Keyframe.Transform()
-        transform.location = self._read_vector(f)
-        transform.rotation = self._read_quaternion(f)
+
+        # Unpack and transform the values
+        location = unpack('3h', f)
+        location_small_scale = unpack('h', f)[0] # Flag
+        rotation = unpack('4h', f)
+
+        # Constants..kinda. If location small scale is 0, then SCALE_LOC can change.
+        SCALE_ROT = 0x4000
+        SCALE_LOC = 0x10
+
+        if location_small_scale == 0:
+            SCALE_LOC = 0x1000
+
+        transform.location.x = location[0] / SCALE_LOC
+        transform.location.y = location[1] / SCALE_LOC
+        transform.location.z = location[2] / SCALE_LOC
+
+        transform.rotation.x = rotation[0] / SCALE_ROT
+        transform.rotation.y = rotation[1] / SCALE_ROT
+        transform.rotation.z = rotation[2] / SCALE_ROT
+        transform.rotation.w = rotation[3] / SCALE_ROT
+
         return transform
 
     def _read_child_model(self, f):
@@ -324,17 +351,30 @@ class PS2LTBModelReader(object):
 
     def _read_animation(self, f):
         animation = Animation()
+        animation.name = "Animation_%d" % self._animations_processed
         animation.extents = self._read_vector(f)
-        animation.name = self._read_string(f)
-        animation.unknown1 = unpack('i', f)[0]
-        animation.interpolation_time = unpack('I', f)[0] if self._version >= 12 else 200
+
+        unknown_vector_maybe = self._read_vector(f)
+        hashed_string = unpack('I', f)[0]
+        animation.interpolation_time = unpack('I', f)[0]
         animation.keyframe_count = unpack('I', f)[0]
         animation.keyframes = [self._read_keyframe(f) for _ in range(animation.keyframe_count)]
         animation.node_keyframe_transforms = []
         for _ in range(self._node_count):
+            start_marker = unpack('I', f)[0]
             animation.node_keyframe_transforms.append(
                 [self._read_transform(f) for _ in range(animation.keyframe_count)])
+
+        self._animations_processed += 1
+
+        # Check if we can figure out the hashed string
+        looked_up_value = self._hasher.lookup_hash(hashed_string, "animations")
+
+        if (looked_up_value != None):
+            animation.name = looked_up_value
+
         return animation
+    # End Function
 
     
     def _read_socket(self, f):
@@ -346,11 +386,19 @@ class PS2LTBModelReader(object):
         socket.location = self._read_vector(f)
         f.seek(4, 1)
         socket.node_index = unpack('I', f)[0]
-        f.seek(4 * 2, 1)
+        hashed_string = unpack('I', f)[0]
+
+        f.seek(4, 1)
 
         # Fill in some missing data
         socket.name = "Socket" + str(self._socket_counter)
         self._socket_counter += 1
+
+        # Check if we can figure out the hashed string
+        looked_up_value = self._hasher.lookup_hash(hashed_string, "sockets")
+
+        if (looked_up_value != None):
+            socket.name = looked_up_value
 
         return socket
 
@@ -410,7 +458,7 @@ class PS2LTBModelReader(object):
             # Model Info
             keyframe_count = unpack('i', f)[0]
             animation_count = unpack('i', f)[0]
-            node_count = unpack('i', f)[0]
+            self._node_count = unpack('i', f)[0]
             piece_count = unpack('i', f)[0]
             child_model_count = unpack('i', f)[0]
             triangle_count = unpack('i', f)[0]
@@ -428,8 +476,12 @@ class PS2LTBModelReader(object):
             # End Model Info
 
             # Piece Header
-            f.seek(4 * 3, 1)
+            hash_magic_number = unpack('i', f)[0]
+            f.seek(4 * 2, 1)
             # End Piece Header
+
+            # Setup our hasher
+            self._hasher = HashLookUp(hash_magic_number)
 
 
             # We can have multiple pieces!
@@ -843,7 +895,7 @@ class PS2LTBModelReader(object):
                                 for i in range(len(lod.vertices[vi].weights)):
                                     lod.vertices[vi].weights[i].location = (ordered_vertex.location @ Matrix())
 
-                                print("Setting vertex weights ! ", lod.vertices[vi].weights[0].__dict__, processed_weights[0].__dict__)
+                                #print("Setting vertex weights ! ", lod.vertices[vi].weights[0].__dict__, processed_weights[0].__dict__)
                                 break
                         # End for `vi in range( len(lod.vertices) )`
                     # End for `wi in range(lod_vertex_count)`
@@ -859,14 +911,16 @@ class PS2LTBModelReader(object):
             print("Final verticies ", len(lod.vertices))
             print("Final faces ", len(lod.faces))
 
-            # Let's seek to node offset
-            f.seek(node_offset)
-
             # Handle Nodes!
             f.seek(node_offset)
 
-            model.nodes = [self._read_node(f) for _ in range(node_count)]
+            model.nodes = [self._read_node(f) for _ in range(self._node_count)]
             build_undirected_tree(model.nodes)
+
+            # Handle Animations!
+            f.seek(animation_offset)
+            local_animation_count = unpack('I', f)[0]
+            model.animations = [self._read_animation(f) for _ in range(local_animation_count)]
 
             # Handle Sockets!
             f.seek(socket_offset)
