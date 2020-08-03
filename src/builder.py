@@ -124,6 +124,7 @@ class ModelBuilder(object):
                     face_vertex.texcoord.y = uv.y
                     face_vertex.vertex_index = mesh.loops[loop_index].vertex_index
                     face.vertices.append(face_vertex)
+                face.material_index = polygon.material_index
                 lod.faces.append(face)
 
             piece.lods.append(lod)
