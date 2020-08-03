@@ -1,5 +1,28 @@
 import bpy
 import bmesh
+from enum import Enum
+
+# Enums
+class LTAVersion(Enum):
+    TALON = 'lithtech-talon'
+    LT22 = 'lithtech-2.2'
+    JUPITER = 'lithtech-jupiter'
+    JUPITER_EX = 'lithtech-jupiter-ex'
+
+    @staticmethod
+    def get_text(version):
+        if version == LTAVersion.TALON.value:
+            return 'Lithtech Talon'
+        elif version == LTAVersion.LT22.value:
+            return 'Lithtech 2.2'
+        elif version == LTAVersion.JUPITER.value:
+            return 'Lithtech Jupiter (Not Supported)'
+        elif version == LTAVersion.JUPITER_EX.value:
+            return 'Lithtech Jupiter EX (Not Supported)'
+        # End If
+        return 'Unknown Version'
+
+# Helper functions
 
 # Displays a message box that's immensely more helpful than errors
 def show_message_box(message = "", title = "Message Box", icon = 'INFO'):

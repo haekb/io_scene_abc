@@ -1,6 +1,7 @@
 import struct
 import itertools
 from mathutils import Vector, Quaternion, Matrix
+from .utils import LTAVersion
 
 #
 # LithTech Ascii Format
@@ -183,7 +184,14 @@ class NodeWriter(object):
 # End Class
 
 class LTAModelWriter(object):
-    def write(self, model, path):
+
+    def __init__(self):
+        self._version = 'not-set'
+
+    def write(self, model, path, version):
+        # Set the version
+        self._version = version
+
         # This is the main node! Everything is a child of this duder.
         root_node = LTANode('lt-model-0')
 
@@ -359,7 +367,8 @@ class LTAModelWriter(object):
             tri_fs_node.create_property( face_index_list )
             tex_fs_node.create_property( uv_index_list )
 
-            # Okay let's deal with Lithtech 2.1/Talon appearence node
+            # Okay let's deal with Lithtech 2.2/Talon appearence node
+            # Note: Talon's ModelEdit has a bug where it reads the data, and then discards it...
             appearance_node = p_node.create_child('appearance')
 
             pc_material_node = appearance_node.create_child('pc-mat')
@@ -367,6 +376,8 @@ class LTAModelWriter(object):
             pc_material_node.create_child('specular-power', piece.specular_power)
             pc_material_node.create_child('specular-scale', piece.specular_scale)
             pc_material_node.create_child('texture-index', piece.material_index)
+
+            # End If
         # End For
 
         ##########################################################
