@@ -85,7 +85,7 @@ def import_model(model, options):
     ''' Add sockets as empties with a child-of constraint to the appropriate bone. '''
     if options.should_import_sockets:
         for socket in model.sockets:
-            empty_object = Data.objects.new(socket.name, None)
+            empty_object = Data.objects.new("s_" + socket.name, None)
             empty_object.location = socket.location
             empty_object.rotation_quaternion = socket.rotation
             empty_object.empty_display_type = 'PLAIN_AXES'

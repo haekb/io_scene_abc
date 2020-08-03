@@ -141,13 +141,30 @@ class ModelBuilder(object):
 
             matrix = armature_object.matrix_world @ bone.matrix_local
 
-            node.bind_matrix = matrix #bone.matrix_local
+            node.bind_matrix = matrix
 
             #print("Processed", node.name, node.bind_matrix)
             node.child_count = len(bone.children)
             model.nodes.append(node)
 
         build_undirected_tree(model.nodes)
+
+        ''' Sockets '''
+        for obj in bpy.data.objects:
+            print("Obj Type %s and name %s" % (obj.type, obj.name))
+            if obj.type == 'EMPTY' and obj.name.startswith("s_"):
+                node_index = 0
+                for node in model.nodes:
+                    if node.name == obj.constraints.active.subtarget:
+                        node_index = node.index
+                        break
+
+                socket = Socket()
+                socket.name = obj.name[2:]
+                socket.node_index = node_index
+                socket.location = obj.location
+                socket.rotation = obj.rotation_quaternion
+                model.sockets.append(socket)
 
         ''' ChildModels '''
         child_model = ChildModel()
