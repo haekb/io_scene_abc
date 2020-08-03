@@ -111,6 +111,7 @@ class ModelBuilder(object):
                 lod.vertices.append(v)
 
             ''' Faces '''
+            material_count = {}
             for polygon in mesh.polygons:
                 if len(polygon.loop_indices) > 3:
                     raise Exception('Mesh \'{}\' is not triangulated.'.format(
@@ -124,9 +125,16 @@ class ModelBuilder(object):
                     face_vertex.texcoord.y = uv.y
                     face_vertex.vertex_index = mesh.loops[loop_index].vertex_index
                     face.vertices.append(face_vertex)
-                face.material_index = polygon.material_index
+
+                # We're going to keep a running total to see which material index is the main one to use
+                if polygon.material_index in material_count:
+                    material_count[polygon.material_index] = material_count[polygon.material_index] + 1
+                else:
+                    material_count[polygon.material_index] = 0
+
                 lod.faces.append(face)
 
+            piece.material_index = max(material_count)
             piece.lods.append(lod)
 
             model.pieces.append(piece)
