@@ -5,6 +5,7 @@ from mathutils import Vector, Matrix, Quaternion
 from functools import cmp_to_key
 import math
 import copy
+from .hash_ps2 import HashLookUp
 
 #########################################################################################
 # PS2 LTB Model Reader by Jake Breen
@@ -231,6 +232,8 @@ class PS2LTBModelReader(object):
         # Hack to count animation names
         self._animations_processed = 0
 
+        self._hasher = None
+
     # Leftovers from ABC Model Reader
     def _read_matrix(self, f):
         data = unpack('16f', f)
@@ -352,7 +355,7 @@ class PS2LTBModelReader(object):
         animation.extents = self._read_vector(f)
 
         unknown_vector_maybe = self._read_vector(f)
-        animation.unknown1 = unpack('I', f)[0]
+        hashed_string = unpack('I', f)[0]
         animation.interpolation_time = unpack('I', f)[0]
         animation.keyframe_count = unpack('I', f)[0]
         animation.keyframes = [self._read_keyframe(f) for _ in range(animation.keyframe_count)]
@@ -363,6 +366,12 @@ class PS2LTBModelReader(object):
                 [self._read_transform(f) for _ in range(animation.keyframe_count)])
 
         self._animations_processed += 1
+
+        # Check if we can figure out the hashed string
+        looked_up_value = self._hasher.lookup_hash(hashed_string, "animations")
+
+        if (looked_up_value != None):
+            animation.name = looked_up_value
 
         return animation
     # End Function
@@ -377,11 +386,19 @@ class PS2LTBModelReader(object):
         socket.location = self._read_vector(f)
         f.seek(4, 1)
         socket.node_index = unpack('I', f)[0]
-        f.seek(4 * 2, 1)
+        hashed_string = unpack('I', f)[0]
+
+        f.seek(4, 1)
 
         # Fill in some missing data
         socket.name = "Socket" + str(self._socket_counter)
         self._socket_counter += 1
+
+        # Check if we can figure out the hashed string
+        looked_up_value = self._hasher.lookup_hash(hashed_string, "sockets")
+
+        if (looked_up_value != None):
+            socket.name = looked_up_value
 
         return socket
 
@@ -459,8 +476,12 @@ class PS2LTBModelReader(object):
             # End Model Info
 
             # Piece Header
-            f.seek(4 * 3, 1)
+            hash_magic_number = unpack('i', f)[0]
+            f.seek(4 * 2, 1)
             # End Piece Header
+
+            # Setup our hasher
+            self._hasher = HashLookUp(hash_magic_number)
 
 
             # We can have multiple pieces!
@@ -874,7 +895,7 @@ class PS2LTBModelReader(object):
                                 for i in range(len(lod.vertices[vi].weights)):
                                     lod.vertices[vi].weights[i].location = (ordered_vertex.location @ Matrix())
 
-                                print("Setting vertex weights ! ", lod.vertices[vi].weights[0].__dict__, processed_weights[0].__dict__)
+                                #print("Setting vertex weights ! ", lod.vertices[vi].weights[0].__dict__, processed_weights[0].__dict__)
                                 break
                         # End for `vi in range( len(lod.vertices) )`
                     # End for `wi in range(lod_vertex_count)`

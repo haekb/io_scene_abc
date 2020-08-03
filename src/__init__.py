@@ -14,6 +14,7 @@ bl_info = {
 
 if 'bpy' in locals():
     import importlib
+    if 'hash_ps2'           in locals(): importlib.reload(hash_ps2)
     if 's3tc'               in locals(): importlib.reload(s3tc)
     if 'dxt'                in locals(): importlib.reload(dtx)
     if 'abc'                in locals(): importlib.reload(abc)
@@ -27,6 +28,7 @@ if 'bpy' in locals():
     if 'converter'          in locals(): importlib.reload(converter)
 
 import bpy
+from . import hash_ps2
 from . import s3tc
 from . import dtx
 from . import abc
@@ -38,6 +40,7 @@ from . import writer_lta_pc
 from . import importer
 from . import exporter
 from . import converter
+
 
 from bpy.utils import register_class, unregister_class
 
