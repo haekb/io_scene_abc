@@ -10,7 +10,7 @@ Format | Import | Export
 --- | --- | ---
 ABC | Rigid and Skeletal | Limited
 LTA | No | Rigid and Skeletal
-LTB (PS2) | Limited | No
+LTB (PS2) | Rigid and Skeletal | No
 LTB (PC) | No | No
 
 The ABC file format description can be found on our wiki [here](https://github.com/cmbasnett/io_scene_abc/wiki/ABC).
