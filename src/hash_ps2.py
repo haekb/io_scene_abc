@@ -1,13 +1,11 @@
 from ctypes import c_int
 
 # Lookup table for our hashin'
+# These values must be datamined,
+# I've included known values for the new PS2 stuff in NOLF 1.
 HASH_LOOKUP = {
     "sockets" : [
-        #############
-        # Sockets
-        #############
         # Characters
-        "RightHand",
         "Head",
         "Eyes",
         "Back",
@@ -15,16 +13,13 @@ HASH_LOOKUP = {
         "Chin",
         "LeftHand",
         "LeftFoot",
-        
+        "RightHand",
         "RightFoot",
         "Snowmobile",
         "Motorcycle",
     ],
 
     "animations" : [
-        #############
-        # Animations
-        #############
         # Characters
         "base",
         "StandHip",
