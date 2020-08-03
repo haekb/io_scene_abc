@@ -4,7 +4,7 @@ from bpy.props import StringProperty, EnumProperty
 from .builder import ModelBuilder
 from .writer_abc_pc import ABCModelWriter
 from .writer_lta_pc import LTAModelWriter
-from .utils import LTAVersion
+from .utils import ABCVersion, LTAVersion
 
 class ExportOperatorABC(Operator, ExportHelper):
     """This appears in the tooltip of the operator and in the generated docs"""
@@ -30,10 +30,28 @@ class ExportOperatorABC(Operator, ExportHelper):
         items=item_cb,
     )
 
+    def item_abc_version(self, context):
+        items = []
+        for version in ABCVersion:
+            value = version.value
+            items.append( (value, ABCVersion.get_text(value), ABCVersion.get_text(value)) )
+        # End For
+        return items
+    # End Func
+
+    abc_version: EnumProperty(
+        name="ABC Version",
+        description="Choose a version of ABC to export",
+        items = item_abc_version,
+    )
+
     def execute(self, context):
+        if self.abc_version in [ABCVersion.ABC6.value, ABCVersion.ABC13.value]:
+            raise Exception('Not implemented ({}).'.format(ABCVersion.get_text(self.abc_version)))
+
         armature_object = context.scene.objects[self.armature]
         model = ModelBuilder().from_armature(armature_object)
-        ABCModelWriter().write(model, self.filepath)
+        ABCModelWriter().write(model, self.filepath, self.abc_version)
         return {'FINISHED'}
 
     def menu_func_export(self, context):

@@ -6,6 +6,7 @@ from enum import Enum
 class LTAVersion(Enum):
     TALON = 'lithtech-talon'
     LT22 = 'lithtech-2.2'
+    # Not supported...yet
     JUPITER = 'lithtech-jupiter'
     JUPITER_EX = 'lithtech-jupiter-ex'
 
@@ -19,6 +20,23 @@ class LTAVersion(Enum):
             return 'Lithtech Jupiter (Not Supported)'
         elif version == LTAVersion.JUPITER_EX.value:
             return 'Lithtech Jupiter EX (Not Supported)'
+        # End If
+        return 'Unknown Version'
+
+class ABCVersion(Enum):
+    ABC12 = 'abc-12'
+    # Not supported...yet
+    ABC13 = 'abc-13'
+    ABC6 = 'abc-6'
+
+    @staticmethod
+    def get_text(version):
+        if version == ABCVersion.ABC12.value:
+            return 'ABC v12 (Lithtech 2.1/Talon)'
+        elif version == ABCVersion.ABC13.value:
+            return 'ABC v13 (Not Supported)'
+        elif version == ABCVersion.ABC6.value:
+            return 'ABC v6 (Not Supported)'
         # End If
         return 'Unknown Version'
 

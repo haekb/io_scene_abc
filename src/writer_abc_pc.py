@@ -33,11 +33,17 @@ class ABCModelWriter(object):
         strings.discard('')
         return strings
 
-    def write(self, model, path):
+    def __init__(self):
+        self._version = 'not-set'
+
+    def write(self, model, path, version):
         class Section(object):
             def __init__(self, name, data):
                 self.name = name
                 self.data = data
+
+        self._version = version
+        
 
         sections = []
 
