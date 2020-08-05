@@ -148,7 +148,7 @@ class ABCModelReader(object):
                 next_section_offset = unpack('i', f)[0]
                 if section_name == 'Header':
                     self._version = unpack('I', f)[0]
-                    if self._version not in [9, 10, 11, 12]:
+                    if self._version not in [9, 10, 11, 12, 13]:
                         raise Exception('Unsupported file version ({}).'.format(self._version))
                     model.version = self._version
                     f.seek(8, 1)
@@ -158,6 +158,11 @@ class ABCModelReader(object):
                     f.seek(4, 1)
                     self._weight_set_count = unpack('I', f)[0]
                     f.seek(8, 1)
+
+                    # Unknown new value
+                    if self._version >= 13:
+                        f.seek(4,1)
+
                     model.command_string = self._read_string(f)
                     model.internal_radius = unpack('f', f)[0]
                     f.seek(64, 1)
@@ -173,7 +178,7 @@ class ABCModelReader(object):
                 elif section_name == 'ChildModels':
                     child_model_count = unpack('H', f)[0]
                     model.child_models = [self._read_child_model(f) for _ in range(child_model_count)]
-                elif section_name == 'Animation':
+                elif section_name == 'Animation' and self._version != 13:
                     animation_count = unpack('I', f)[0]
                     model.animations = [self._read_animation(f) for _ in range(animation_count)]
                 elif section_name == 'Sockets':

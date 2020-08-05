@@ -83,7 +83,7 @@ class Piece(object):
         self.material_index = 0
         self.specular_power = 0.0
         self.specular_scale = 0.0
-        self.lod_weight = 0.0
+        self.lod_weight = 1.0
         self.name = ''
         self.lods = []
     
