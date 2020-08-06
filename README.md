@@ -4,6 +4,14 @@ This addon is forked from [io_scene_abc](https://github.com/cmbasnett/io_scene_a
 
 This addon provides limited support for importing and exporting various Lithtech models formats from [No One Lives Forever](https://en.wikipedia.org/wiki/The_Operative:_No_One_Lives_Forever) to and from Blender 2.8x.
 
+## How To Install
+
+Download or clone the repository, and zip up the `src` folder. Go to `Edit -> Preferences` in Blender 2.8x, select `install` and then select the zip file you just created.
+
+To download the respository, click the green `Code -> Download ZIP` at the top of the main page.
+
+I will eventually add releases.
+
 ## Supported Formats
 
 Format | Import | Export
