@@ -86,6 +86,11 @@ class ABCModelReader(object):
         transform = Animation.Keyframe.Transform()
         transform.location = self._read_vector(f)
         transform.rotation = self._read_quaternion(f)
+
+        # Two unknown floats!
+        if self._version == 13:
+            f.seek(8, 1)
+
         return transform
 
     def _read_child_model(self, f):
@@ -111,6 +116,11 @@ class ABCModelReader(object):
         animation.keyframes = [self._read_keyframe(f) for _ in range(animation.keyframe_count)]
         animation.node_keyframe_transforms = []
         for _ in range(self._node_count):
+
+            # Skip past -1
+            if self._version == 13:
+                f.seek(4, 1)
+
             animation.node_keyframe_transforms.append(
                 [self._read_transform(f) for _ in range(animation.keyframe_count)])
         return animation
@@ -178,7 +188,7 @@ class ABCModelReader(object):
                 elif section_name == 'ChildModels':
                     child_model_count = unpack('H', f)[0]
                     model.child_models = [self._read_child_model(f) for _ in range(child_model_count)]
-                elif section_name == 'Animation' and self._version != 13:
+                elif section_name == 'Animation':
                     animation_count = unpack('I', f)[0]
                     model.animations = [self._read_animation(f) for _ in range(animation_count)]
                 elif section_name == 'Sockets':

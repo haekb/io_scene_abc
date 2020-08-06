@@ -1,0 +1,268 @@
+//------------------------------------------------
+//--- 010 Editor v10.0.1 Binary Template
+//
+//      File: 
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: 
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+typedef unsigned char uint8;
+
+struct Section {
+    short stringLength;
+    char Type[stringLength] <optimize=false>;
+    uint32 NextSection;
+};
+
+struct LTString {
+    short stringLength;
+    char Type[stringLength] <optimize=false>;
+};
+
+struct LTTexCoord {
+    float u,v;
+};
+
+struct LTVector {
+    float x,y,z;
+};
+
+struct LTRotation {
+    float x,y,z,w;
+};
+
+struct LTMatrix {
+    LTRotation m[4];
+};
+
+
+struct Transform {
+    LTVector Location;
+    LTRotation Rotation;
+};
+
+struct AnimTransform {
+    LTVector Location;
+    
+    LTRotation Rotation;
+    float Unknown[2];
+    
+/*
+    LTVector Location;
+    int Unknown[6];
+    LTRotation Rotation;
+*/
+};
+
+//
+// Header Data
+//
+
+struct Header {
+    uint32 Version;
+    uint32 KeyframeCount;
+    uint32 AnimationCount;
+    uint32 NodeCount;
+    uint32 PieceCount;
+    uint32 ChildModelCount;
+    uint32 FaceCount;
+    uint32 VertexCount;
+    uint32 WeightCount;
+    uint32 LODCount;
+    uint32 SocketCount;
+    uint32 WeightSetCount;
+    uint32 Unknown; // v13
+    uint32 StringCount;
+    uint32 StringLengthTotal;
+    LTString CommandString;
+    float InternalRadius;
+    uint32 LODDistanceCount;
+    char Padding[60];
+    float LODDistances[LODDistanceCount] <optimize=false>;
+};
+
+//
+// Piece Data
+//
+
+struct FaceVertex {
+    LTTexCoord TexCoord;
+    uint16 VertexIndex;
+};
+
+struct Face {
+    FaceVertex Vertices[3];
+};
+
+struct Weight {
+    uint32 NodeIndex;
+    LTVector Location; // This boy, right here!
+    float Bias;
+};
+
+struct Vertex {
+    uint16 WeightCount;
+    uint16 SubLODVertexIndex;
+    Weight Weights[WeightCount] <optimize=false>;
+    LTVector Location;
+    LTVector Normal;
+};
+
+struct LOD {
+    uint32 FaceCount;
+    Face Faces[FaceCount] <optimize=false>;
+    uint32 VertexCount;
+    Vertex Vertices[VertexCount] <optimize=false>;
+};
+
+struct Piece (uint32 LODCount) {
+    uint16 MaterialIndex;
+    float SpecularPower;
+    float SpecularScale;
+    float LODWeight;
+    uint16 Unknown;
+    LTString Name;
+    LOD LODs[LODCount] <optimize=false>;
+};
+
+struct PieceHeader (uint32 LODCount) {
+    uint32 WeightCount;
+    uint32 PieceCount;
+    Piece Pieces(LODCount)[PieceCount] <optimize=false>;
+};
+
+//
+// Node Data
+//
+
+
+
+struct Node {
+    LTString Name;
+    uint16 Index;
+    uint8 Flags;
+    LTMatrix BindMatrix;
+    uint32 ChildCount;
+};
+
+//
+// Weight Data
+//
+
+struct WeightSet {
+    LTString Name;
+    uint32 NodeCount;
+    float NodeWeights[NodeCount] <optimize=false>;
+};
+
+struct WeightHeader {
+    uint32 WeightSetCount;
+    WeightSet WeightSets[WeightSetCount] <optimize=false>;
+};
+
+//
+// Child Models
+// 
+
+
+struct ChildModel (uint32 NodeCount) {
+    LTString Name;
+    uint32 BuildNumber;
+    Transform Transforms[NodeCount] <optimize=false>;
+};
+
+struct ChildModelHeader (uint32 NodeCount) {
+    uint16 ChildModelCount;
+    ChildModel ChildModels(NodeCount)[ChildModelCount] <optimize=false>;
+};
+
+//
+// Animation Data
+//
+
+struct AnimationHeader {
+    int AnimCount;
+};
+
+struct KeyFrame {
+    int Time;
+    LTString Command;
+};
+
+struct KeyFrameTransform (uint32 KeyFrameCount) {
+    int NegativeOne;
+    //LTVector Dims;
+    AnimTransform Transforms[KeyFrameCount];
+};
+
+struct Animation (int NodeCount) {
+    LTVector Extents;
+    LTString Name;
+    int UnkInt;
+    int InterpolationTime;
+    int KeyFrameCount;
+    KeyFrame KeyFrames[KeyFrameCount]  <optimize=false>;
+    KeyFrameTransform Transforms(KeyFrameCount)[NodeCount]  <optimize=false>;
+};
+
+//
+// Socket Data
+//
+
+struct Socket {
+    uint32 NodeIndex;
+    LTString Name;
+    LTRotation Rotation;
+    LTVector Location;
+};
+
+struct SocketHeader {
+    uint32 SocketCount;
+    Socket Sockets[SocketCount]  <optimize=false>;
+};
+
+//
+// AnimBinding Data
+//
+
+struct AnimBinding {
+    LTString Name;
+    LTVector Extents;
+    LTVector Origin;
+};
+
+struct AnimBindingHeader {
+    uint32 BindingCount;
+    AnimBinding AnimBindings[BindingCount] <optimize=false>;
+};
+
+//
+// GO!
+// 
+
+Section section;
+Header hdr;
+
+Section pieceSection;
+PieceHeader piece(hdr.LODCount);
+
+Section nodeSection;
+Node nodes[hdr.NodeCount]  <optimize=false>;
+WeightHeader weightsets;
+
+Section childSection;
+ChildModelHeader ChildModels(hdr.NodeCount);
+
+Section AnimSection;
+AnimationHeader animHdr;
+Animation anim(hdr.NodeCount)[animHdr.AnimCount]  <optimize=false>;
+
+Section SocketSection;
+SocketHeader Sockets;
+
+Section AnimBindingsSection;
+AnimBindingHeader AnimBindings;
