@@ -1,11 +1,42 @@
 # Format
 Model00a files are simply LTA files wrapped with some extra data.
 
+# Resource Database
+Seems to be some meta data about the file, including compression used, and the type.
+
+## Nodes
+`resource-database`
+
+Wraps the entire resource data info.
+
+`version`
+
+File format version. In FEAR's case it appears to be 1.
+
+`resource-list`
+
+List of `resource` items.
+
+`resource`
+- `name` - Name of the current file. Supports "variables" (I've only ever seen `%CurrentFile%` be used.)
+- `type` - The type of this current file (`Model` for model00a formats, and `World` for world00a formats.)
+- `parameter-list` - List of `parameter` items.
+
+Holds some meta data.
+
+`parameter`
+ - `name` - Name of the parameter.
+ - `type` - Parameter variable type.
+ - `value` - Value of the parameter.
+
+Basic key/value parameters. Include stuff like compressed type.
+
 # Physics
 Lithtech Jupiter EX integrates the Havok physics engine. It appears support wasn't extended to modders, I've heard reports of Havok/Physics part of the mesh exporter are just broken because of unincluded havok sdk files. Good news though, it appears to be a very simple thing to support.
 
 ## Nodes
 `model-physics` 
+
 Wraps the entire physics data
 
 `physics-properties`
@@ -13,9 +44,11 @@ Wraps the entire physics data
 - `model-density` - The density of this object measured in grams per cubic centimeter that is used for buoyancy. Water has a density of 1 gram per cubic centimeter.
 - `vis-node` - Center of visibility when the model is in a physically simulated state.
 - `vis-radius` - Radius of vis-node.
+
 Contains various properties affecting the entire mesh.
 
 `physics-shapes`
+
 A list of `node-shape-list` items.
 
 `node-shape-list`
@@ -23,9 +56,11 @@ A list of `node-shape-list` items.
  - `cor` - Coefficient of restitution value of the shape.
  - `friction` - Friction of the shape.
  - `collision-group` - This affects which physics items will collide with other physics items.
+
 An item within the `physics-shapes` list.
 
 `node-shapes`
+
 A list of `physics-shape` items.
 
 `physics-shape`
@@ -37,9 +72,11 @@ A list of `physics-shape` items.
 - `density-scale` - How dense this particular shape is.
 - `offset` - Offset XYZ from the assigned node.
 - `orientation` - Orientation XYZW from the assigned node. (capsule specific?)
+
 The actual physics mesh data along with some physical defining properties.
 
 `physics-constraints`
+
 A list of `constraint` items.
 
 (I haven't poked around with constraints that much!)
@@ -69,19 +106,23 @@ A list of `constraint` items.
 - `pos-angle` - The radius of the cone of restriction around the positive X axis of the constraint (ragdoll specific)
 - `neg-angle` - The radius of the cone of restriction around the negative X axis of the constraint (ragdoll specific)
 - `friction` - The amount of friction to apply as the object moves. This number should be obtained through experimentation, but larger numbers mean more friction
+
 Constraints force the ragdoll shapes to behave in a specific way. These can help with making human bodies move correctly and not clip into themselves, or allow doors to only open in one direction.
 
 `physics-weight-sets`
+
 List of `physics-weight-set` items.
 
 `physics-weight-set`
 - `name` - Name of the weight set
 - `node-list` a list of `node-weight`s. 
+  
 unknown!
 
 `node-weight`
 - `node` - The node in question
 - `physics` - unknown
 - `velocity-gain` - unknown
-- `hierarchy-gain` - unknown`
+- `hierarchy-gain` - unknown
+
 unknown!
