@@ -1,0 +1,66 @@
+Animation Scheme 
+
+//
+// For "No Compression" scheme
+// Notes: Animation data seems to be controlled via the flags
+// Position can be missing completely, but it seems like Quats will always be shorts.
+// Quats might be total up to 32767. 1.0 = 32767 if there's no other rotation values.
+// Positions seem to only be removed up to the third node, anything after that seems to be just zeroed out.
+//
+#define NO_CMP_HAS_POS_DATA 12
+
+struct AnimationHeader {
+    short UnkShort;
+    int Unk[19];
+    int AnimationDataLength;
+    ushort Flags[4]; 
+};
+
+struct Animation {
+    LTVector Position; // Floats
+    LTCompressedQuat Rotation; // Shorts
+};
+----
+
+Sampling 1 out 2 nodes for animation here, two int sized flags for data format?
+
+(0.000000 0.000000 0.000000 )
+(0.000000 0.000000 0.000000 0.000000 )
+= 0x8000FFFF
+= 0x8008FFFF
+
+(1.000000 0.000000 0.000000 )
+(0.000000 0.000000 0.000000 0.000000 )
+= 0x800C8000
+= 0x8014FFFF
+
+(1.000000 1.000000 0.000000 )
+(0.000000 0.000000 0.000000 0.000000 )
+= 0x800C8000
+= 0x8014FFFF
+
+(1.000000 1.000000 1.000000 )
+(0.000000 0.000000 0.000000 0.000000 )
+= 0x800C8000
+= 0x8014FFFF
+
+
+0x8014FFFF = 1 << 17 ?
+-------
+
+Sampling 2/2 node for animation
+
+(1.000000 0.000000 0.000000 )
+(0.000000 0.000000 0.000000 0.000000 )
+= 0x8000FFFF
+= 0x80148008
+
+-------
+
+Sampling both nodes
+(1.000000 0.000000 0.000000 )
+(0.000000 0.00000 0.000000 0.000000 )
+(1.000000 0.000000 0.000000 )
+(0.000000 0.00000 0.000000 0.000000 )
+= 0x800C8000
+= 0x80208014
