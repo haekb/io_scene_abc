@@ -30,7 +30,7 @@ jobs:
 
       # Runs a single command using the runners shell
       - name: "Zip up the src folder's contents"
-        run: zip io_scene_lithtech.zip ./src/*.*
+        run: zip -j io_scene_lithtech.zip ./src/*.*
 
       - name: 'Upload Artifact'
         uses: actions/upload-artifact@v2
