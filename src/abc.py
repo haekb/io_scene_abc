@@ -51,12 +51,20 @@ class Vertex(object):
         self.location = Vector()
         self.normal = Vector()
 
+        # LTB specific
+        self.colour = 0
+
 
 class FaceVertex(object):
     def __init__(self):
         self.texcoord = Vector()
         self.vertex_index = 0
         self.reversed = False
+
+        # LTB specific
+
+        # Supports up to 4 UVs, so let's add some more!
+        self.extra_texcoords = [Vector(), Vector(), Vector()]
 
 
 class Face(object):
@@ -68,6 +76,22 @@ class LOD(object):
     def __init__(self):
         self.faces = []
         self.vertices = []
+
+        # LTB specific
+        self.texture_count = 0
+        self.render_style = 0
+        self.render_priority = 0
+        self.textures = [] # Order?
+        self.type = 7 # Null
+
+        self.max_bones_per_face = 0
+        self.max_bones_per_vert = 0
+        self.vert_count = 0
+        self.face_count = 0
+
+        # Basis Vector???
+        self.s = Vector()
+        self.t = Vector()
 
     def get_face_vertices(self, face_index):
         return [self.vertices[vertex.vertex_index] for vertex in self.faces[face_index].vertices]
@@ -86,6 +110,11 @@ class Piece(object):
         self.lod_weight = 1.0
         self.name = ''
         self.lods = []
+
+        # LTB specific
+        self.lod_min = 0.0
+        self.lod_max = 0.0
+        self.lod_distances = []
     
 class Node(object):
     
@@ -212,6 +241,9 @@ class Model(object):
 
         # Flip animation keyframes
         self.flip_anim = True
+
+        # LTB specific
+
         
     @property
     def keyframe_count(self):

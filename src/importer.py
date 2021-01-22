@@ -12,6 +12,7 @@ from .utils import show_message_box
 # Format imports
 from .reader_abc_v6_pc import ABCV6ModelReader
 from .reader_abc_pc import ABCModelReader
+from .reader_ltb_pc import PCLTBModelReader
 from .reader_ltb_ps2 import PS2LTBModelReader
 
 from . import utils
@@ -77,8 +78,24 @@ def import_model(model, options):
         if bone.parent is not None:
             bone.use_connect = bone.parent.tail == bone.head
         # End If
-
     # End For
+
+    # FIXME: Make bones touch their parents. 
+    # This however breaks the animations. 
+    # 
+    # I think I need to offset this in the animation processing, 
+    # and animations might be a touch broken right now but it's not noticable...just ugly in blender.
+    # ---------------------------- 
+    # for node in model.nodes:
+    #     bone = armature.edit_bones[node.name]
+
+    #     if len(bone.children) == 0:
+    #         continue
+    #     # End If
+
+    #     for child in bone.children:
+    #         bone.tail = child.head 
+    # # End For
 
     Ops.object.mode_set(mode='OBJECT')
 
@@ -616,9 +633,16 @@ class ImportOperatorLTB(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
         box.row().prop(self, 'should_clear_scene')
 
     def execute(self, context):
+
+        # Load the model
+        try:
+            model = PCLTBModelReader().from_file(self.filepath)
+        except Exception as e:
+            model = PS2LTBModelReader().from_file(self.filepath)
+        
         # Load the model
         #try:
-        model = PS2LTBModelReader().from_file(self.filepath)
+        #model = PS2LTBModelReader().from_file(self.filepath)
         #except Exception as e:
         #    show_message_box(str(e), "Read Error", 'ERROR')
         #    return {'CANCELLED'}
