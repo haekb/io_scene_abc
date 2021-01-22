@@ -108,7 +108,7 @@ class PCLTBModelReader(object):
                     weight.node_index = bone
                     weight.bias = 1.0
 
-                    #vertex.weights.append(weight)
+                    vertex.weights.append(weight)
 
                     is_vertex_used = True
                 if mask & VTX_Normal:
@@ -202,9 +202,7 @@ class PCLTBModelReader(object):
                     weights = []
 
                     weight = Weight()
-                    weight.bias = 1.0
-
-                    weights.append(weight)
+                    weight.bias = 1.0                    
 
                     for i in range(lod.max_bones_per_face):
                         # Skip the first one
@@ -224,7 +222,9 @@ class PCLTBModelReader(object):
                         # End If
                     # End For
 
-                    vertex.weights = []#weights
+                    weights.append(weight)
+
+                    vertex.weights = weights
                 if mask & VTX_Normal:
                     vertex.normal = self._read_vector(f)
                     is_vertex_used = True
@@ -299,25 +299,31 @@ class PCLTBModelReader(object):
             index_buffer_index = unpack('I', f)[0]
 
             # Okay, now we can fill up our node indexes!
-            # for vertex_index in range(index_start, index_count):
-            #     vertex = lod.vertices[vertex_index]
+            for vertex_index in range(index_start, index_start + index_count):
+                vertex = lod.vertices[vertex_index]
 
-            #     # We need to re-build the weight list for our vertex
-            #     weights = []
+                # We need to re-build the weight list for our vertex
+                weights = []
 
-            #     for (index, bone_index) in enumerate(bone_list):
-            #         # If we've got an invalid bone (255) then ignore it
-            #         if bone_index == Invalid_Bone:
-            #             continue
-            #         # End If
+                for (index, bone_index) in enumerate(bone_list):
+                    # If we've got an invalid bone (255) then ignore it
+                    if bone_index == Invalid_Bone:
+                        continue
+                    # End If
 
-            #         vertex.weights[index].node_index = bone_index
-            #         # Keep this one!
-            #         weights.append(vertex.weights[index])
-            #     # End For
+                    vertex.weights[index].node_index = bone_index
+                    # Keep this one!
+                    weights.append(vertex.weights[index])
+                # End For
 
-            #     vertex.weights = weights
-            # End For
+                total = 0.0
+                for weight in weights:
+                    total += weight.bias
+
+                assert(total != 0.0)
+
+                vertex.weights = weights
+            #End For
         # End For
 
         return lod
@@ -506,6 +512,14 @@ class PCLTBModelReader(object):
             # Yep again!
             piece_count = unpack('i', f)[0]
             model.pieces = [self._read_piece(f) for _ in range(piece_count)]
+
+            #
+            # Nodes
+            #
+            model.nodes = [self._read_node(f) for _ in range(node_count)]
+            build_undirected_tree(model.nodes)
+            weight_set_count = unpack('I', f)[0]
+            model.weight_sets = [self._read_weight_set(f) for _ in range(weight_set_count)]
 
             return model
 
