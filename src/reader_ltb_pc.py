@@ -140,7 +140,7 @@ class PCLTBModelReader(object):
 
                 if is_face_vertex_used:
                     face_vertex_list.append(face_vertex)
-                
+                 
             # End For
         # End For
 
