@@ -25,6 +25,8 @@ CMP_Relevant = 1
 CMP_Relevant_16 = 2
 CMP_Relevant_Rot16 = 3
 
+Invalid_Bone = 255
+
 #
 # Supports LTB v23
 #
@@ -98,9 +100,16 @@ class PCLTBModelReader(object):
                 is_vertex_used = False
                 is_face_vertex_used = False
             
-
                 if mask & VTX_Position:
                     vertex.location = self._read_vector(f)
+                    
+                    # One bone per vertex
+                    weight = Weight()
+                    weight.node_index = bone
+                    weight.bias = 1.0
+
+                    #vertex.weights.append(weight)
+
                     is_vertex_used = True
                 if mask & VTX_Normal:
                     vertex.normal = self._read_vector(f)
@@ -150,17 +159,166 @@ class PCLTBModelReader(object):
             # If we have room, append!
             if len(face.vertices) < 3:
                 face.vertices.append(face_vertex)
+            # End If
 
             # If we're now over, then flush!
             if len(face.vertices) >= 3:
                 lod.faces.append(face)
                 # Make a new face, and append our face vertex
                 face = Face()
-                #face.vertices.append(face_vertex)
+            # End If
+        # End For
 
         # Make sure our stuff is good!!
         print ("Face Count Check: %d/%d" % (lod.face_count, len(lod.faces)))
         assert(lod.face_count == len(lod.faces))
+
+        return lod
+
+    def _read_skeletal_mesh(self, lod, f):
+        reindexed_bone = unpack('B', f)[0]
+        data_type = unpack('4I', f)
+
+        matrix_palette = unpack('B', f)[0]
+
+        print("Matrix Palette? %d" % matrix_palette)
+
+        # We need face vertex data alongside vertices!
+        face_vertex_list = []
+
+        for mask in data_type:
+            for _ in range(lod.vert_count):
+                vertex = Vertex()
+                face_vertex = FaceVertex()
+
+                # Dirty flags
+                is_vertex_used = False
+                is_face_vertex_used = False
+
+                if mask & VTX_Position:
+                    vertex.location = self._read_vector(f)
+                    is_vertex_used = True
+
+                    weights = []
+
+                    weight = Weight()
+                    weight.bias = 1.0
+
+                    weights.append(weight)
+
+                    for i in range(lod.max_bones_per_face):
+                        # Skip the first one
+                        if i == 0:
+                            continue
+                        # End If
+
+                        # There's 3 additional blends, 
+                        # If ... max_bones_per_face >= 2,3,4
+                        if lod.max_bones_per_face >= (i+1):
+                            blend = unpack('f', f)[0]
+                            weight.bias -= blend
+
+                            blend_weight = Weight()
+                            blend_weight.bias = blend
+                            weights.append(blend_weight)
+                        # End If
+                    # End For
+
+                    vertex.weights = []#weights
+                if mask & VTX_Normal:
+                    vertex.normal = self._read_vector(f)
+                    is_vertex_used = True
+                if mask & VTX_Colour:
+                    vertex.colour = unpack('i', f)[0]
+                    is_vertex_used = True
+                if mask & VTX_UV_Sets_1:
+                    face_vertex.texcoord.xy = unpack('2f', f)
+                    is_face_vertex_used = True
+                if mask & VTX_UV_Sets_2:
+                    face_vertex.extra_texcoords[0].xy = unpack('2f', f)
+                    is_face_vertex_used = True
+                if mask & VTX_UV_Sets_3:
+                    face_vertex.extra_texcoords[1].xy = unpack('2f', f)
+                    is_face_vertex_used = True
+                if mask & VTX_UV_Sets_4:
+                    face_vertex.extra_texcoords[2].xy = unpack('2f', f)
+                    is_face_vertex_used = True
+                if mask & VTX_BasisVector:
+                    vertex.s = self._read_vector(f)
+                    vertex.t = self._read_vector(f)
+                    is_vertex_used = True
+                # End If
+
+                if is_vertex_used:
+                    lod.vertices.append(vertex)
+
+                if is_face_vertex_used:
+                    face_vertex_list.append(face_vertex)
+                
+            # End For
+        # End For
+
+        # Make sure our stuff is good!!
+        print ("Vert Count Check: %d/%d" % (lod.vert_count, len(lod.vertices)))
+        assert(lod.vert_count == len(lod.vertices))
+
+        # We need a "global" face, we'll fill it and re-use it.
+        face = Face()
+        for _ in range(lod.face_count * 3):
+            vertex_index = unpack('H', f)[0]
+
+            face_vertex = face_vertex_list[vertex_index]
+            face_vertex.vertex_index = vertex_index
+
+            # If we have room, append!
+            if len(face.vertices) < 3:
+                face.vertices.append(face_vertex)
+            # End If
+
+            # If we're now over, then flush!
+            if len(face.vertices) >= 3:
+                lod.faces.append(face)
+                # Make a new face, and append our face vertex
+                face = Face()
+            # End If
+        # End For
+
+        # Make sure our stuff is good!!
+        print ("Face Count Check: %d/%d" % (lod.face_count, len(lod.faces)))
+        assert(lod.face_count == len(lod.faces))
+
+        bone_set_count = unpack('I', f)[0]
+
+        for _ in range(bone_set_count):
+            index_start = unpack('H', f)[0]
+            index_count = unpack('H', f)[0]
+
+            bone_list = unpack('4B', f)
+
+            # ???
+            index_buffer_index = unpack('I', f)[0]
+
+            # Okay, now we can fill up our node indexes!
+            # for vertex_index in range(index_start, index_count):
+            #     vertex = lod.vertices[vertex_index]
+
+            #     # We need to re-build the weight list for our vertex
+            #     weights = []
+
+            #     for (index, bone_index) in enumerate(bone_list):
+            #         # If we've got an invalid bone (255) then ignore it
+            #         if bone_index == Invalid_Bone:
+            #             continue
+            #         # End If
+
+            #         vertex.weights[index].node_index = bone_index
+            #         # Keep this one!
+            #         weights.append(vertex.weights[index])
+            #     # End For
+
+            #     vertex.weights = weights
+            # End For
+        # End For
 
         return lod
 
@@ -188,6 +346,11 @@ class PCLTBModelReader(object):
         
         if lod.type == LTB_Type_Rigid_Mesh:
             lod = self._read_rigid_mesh(lod, f)
+        elif lod.type == LTB_Type_Skeletal_Mesh:
+            lod = self._read_skeletal_mesh(lod, f)
+
+        nodes_used_count = unpack('B', f)[0]
+        nodes_used = [unpack('B', f)[0] for _ in range(nodes_used_count)]
 
         return lod
 
