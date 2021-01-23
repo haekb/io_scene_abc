@@ -471,12 +471,12 @@ class PCLTBModelReader(object):
         animation.node_keyframe_transforms = []
 
         if animation.compression_type == CMP_None:
-            animation.is_vertex_animation = unpack('b', f)[0]
-
-            # We don't support vertex animations yet, so alert if we accidentally load some!
-            assert(animation.is_vertex_animation == 0)
-
             for _ in range(self.node_count):
+                animation.is_vertex_animation = unpack('b', f)[0]
+
+                # We don't support vertex animations yet, so alert if we accidentally load some!
+                assert(animation.is_vertex_animation == 0)
+
                 animation.node_keyframe_transforms.append(
                     [self._read_uncompressed_transform(f) for _ in range(animation.keyframe_count)])
             # End For
@@ -565,7 +565,9 @@ class PCLTBModelReader(object):
             #
             obb_count = unpack('i', f)[0]
 
-            # TODO: Figure out OBB
+            # OBB information is a matrix per each node
+            # We don't use it anywhere, so just skip it.
+            f.seek(64 * obb_count, 1)
 
             #
             # Pieces
@@ -617,4 +619,3 @@ class PCLTBModelReader(object):
                     pass
 
             return model
-            
