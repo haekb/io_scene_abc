@@ -28,7 +28,7 @@ CMP_Relevant_Rot16 = 3
 Invalid_Bone = 255
 
 #
-# Supports LTB v23
+# Supports LTB v23 (and maybe 24, 25?)
 #
 class PCLTBModelReader(object):
     def __init__(self):
@@ -539,8 +539,7 @@ class PCLTBModelReader(object):
 
             self.version = unpack('i', f)[0]
 
-            # Hope to support at least up to v25 someday!
-            if self.version not in [23]:
+            if self.version not in [23, 24, 25]:
                 raise Exception('Unsupported file version ({}).'.format(self.version))
             # End If
 
@@ -571,9 +570,14 @@ class PCLTBModelReader(object):
             #
             obb_count = unpack('i', f)[0]
 
+            obb_size = 64
+
+            if self.version > 23:
+                obb_size += 4
+
             # OBB information is a matrix per each node
             # We don't use it anywhere, so just skip it.
-            f.seek(64 * obb_count, 1)
+            f.seek(obb_size * obb_count, 1)
 
             #
             # Pieces
