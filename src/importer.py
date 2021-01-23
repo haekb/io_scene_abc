@@ -222,8 +222,6 @@ def import_model(model, options):
             vertex_offset += len(lod.vertices)
             face_offset += len(lod.faces)
 
-            #bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0001)#, bm.verts, 0.0001)
-
             bm.to_mesh(mesh)
             bm.free()
 
@@ -598,7 +596,7 @@ class ImportOperatorLTB(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     should_import_sockets: BoolProperty(
         name="Import Sockets",
         description="When checked, sockets will be imported as Empty objects.",
-        default=True,
+        default=False,
     )
 
     should_merge_pieces: BoolProperty(

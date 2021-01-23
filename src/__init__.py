@@ -49,7 +49,8 @@ classes = (
     importer.ImportOperatorLTB,
     exporter.ExportOperatorABC,
     exporter.ExportOperatorLTA,
-    converter.ConvertLTBToLTA,
+    converter.ConvertPCLTBToLTA,
+    converter.ConvertPS2LTBToLTA,
 )
 
 def register():
@@ -64,6 +65,10 @@ def register():
     bpy.types.TOPBAR_MT_file_export.append(exporter.ExportOperatorABC.menu_func_export)
     bpy.types.TOPBAR_MT_file_export.append(exporter.ExportOperatorLTA.menu_func_export)
 
+    # Converters
+    bpy.types.TOPBAR_MT_file_import.append(converter.ConvertPCLTBToLTA.menu_func_import)
+    bpy.types.TOPBAR_MT_file_import.append(converter.ConvertPS2LTBToLTA.menu_func_import)
+
 
 def unregister():
     for cls in reversed(classes):
@@ -76,3 +81,7 @@ def unregister():
     # Export options
     bpy.types.TOPBAR_MT_file_export.remove(exporter.ExportOperatorABC.menu_func_export)
     bpy.types.TOPBAR_MT_file_export.remove(exporter.ExportOperatorLTA.menu_func_export)
+
+    # Converters
+    bpy.types.TOPBAR_MT_file_import.remove(converter.ConvertPCLTBToLTA.menu_func_import)
+    bpy.types.TOPBAR_MT_file_import.remove(converter.ConvertPS2LTBToLTA.menu_func_import)
