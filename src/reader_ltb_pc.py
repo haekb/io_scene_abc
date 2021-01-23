@@ -401,7 +401,7 @@ class PCLTBModelReader(object):
         node_transforms = []
 
         for _ in range(self.node_count):
-            # RLE encoding
+            # RLE!
             key_position_count = unpack('I', f)[0]
 
             compressed_positions = []
@@ -420,11 +420,13 @@ class PCLTBModelReader(object):
                 compressed_rotations = [self._process_compressed_quat(unpack('4h', f)) for _ in range(key_rotation_count)]
             # End If
 
-            transforms = []#[Animation.Keyframe.Transform() for _ in range(keyframe_count)]
+            transforms = []
 
             previous_position = Vector( (0, 0, 0) )
             previous_rotation = Quaternion( (1, 0, 0, 0) )
 
+            # RLE animations, if it doesn't change in any additional keyframe,
+            # then it we can just use the last known pos/rot!
             for i in range(keyframe_count):
                 transform = Animation.Keyframe.Transform()
 
