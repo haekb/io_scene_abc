@@ -370,6 +370,10 @@ class PCLTBModelReader(object):
         piece.lod_max = unpack('I', f)[0]
         piece.lods = [self._read_lod(f) for _ in range(lod_count)]
 
+        # Just use the first LODs first texture
+        if lod_count > 0:
+            piece.material_index = piece.lods[0].textures[0]
+
         return piece
 
     def _read_node(self, f):
