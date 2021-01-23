@@ -202,6 +202,10 @@ class Animation(object):
         # Scaled by the animation bounding box
         self.transformed_vertex_deformations = []
 
+        # LTB specific
+        self.compression_type = 0
+        self.is_vetex_animation = 0
+
 
 class AnimBinding(object):
     def __init__(self):

@@ -33,9 +33,9 @@ Invalid_Bone = 255
 class PCLTBModelReader(object):
     def __init__(self):
     
-        self._version = 0
-        self._node_count = 0
-        self._lod_count = 0
+        self.version = 0
+        self.node_count = 0
+        self.lod_count = 0
 
     def _read_matrix(self, f):
         data = unpack('16f', f)
@@ -382,22 +382,76 @@ class PCLTBModelReader(object):
         node.child_count = unpack('I', f)[0]
         return node
 
-    def _read_transform(self, f):
+    def _read_uncompressed_transform(self, f):
         transform = Animation.Keyframe.Transform()
+
         transform.location = self._read_vector(f)
         transform.rotation = self._read_quaternion(f)
 
-        # Two unknown floats!
-        if self._version == 13:
-            f.seek(8, 1)
-
         return transform
+
+    def _process_compressed_vector(self, compressed_vector):
+        return Vector( (compressed_vector[0] / 16.0, compressed_vector[1] / 16.0, compressed_vector[2] / 16.0) )
+
+    def _process_compressed_quat(self, compressed_quat):
+        return Quaternion( (compressed_quat[3] / 0x7FFF, compressed_quat[0] / 0x7FFF, compressed_quat[1] / 0x7FFF, compressed_quat[2] / 0x7FFF) )
+
+    def _read_compressed_transform(self, compression_type, keyframe_count, f):
+        
+        node_transforms = []
+
+        for _ in range(self.node_count):
+            # RLE encoding
+            key_position_count = unpack('I', f)[0]
+
+            compressed_positions = []
+            if compression_type == CMP_Relevant or compression_type == CMP_Relevant_Rot16:
+                compressed_positions = [self._read_vector(f) for _ in range(key_position_count)]
+            elif compression_type == CMP_Relevant_16:
+                compressed_positions = [self._process_compressed_vector(unpack('3h', f)) for _ in range(key_position_count)]
+            # End If
+
+            key_rotation_count = unpack('I', f)[0]
+
+            compressed_rotations = []
+            if compression_type == CMP_Relevant:
+                compressed_rotations = [self._read_quaternion(f) for _ in range(key_rotation_count)]
+            elif compression_type == CMP_Relevant_16 or compression_type == CMP_Relevant_Rot16:
+                compressed_rotations = [self._process_compressed_quat(unpack('4h', f)) for _ in range(key_rotation_count)]
+            # End If
+
+            transforms = []#[Animation.Keyframe.Transform() for _ in range(keyframe_count)]
+
+            previous_position = Vector( (0, 0, 0) )
+            previous_rotation = Quaternion( (1, 0, 0, 0) )
+
+            for i in range(keyframe_count):
+                transform = Animation.Keyframe.Transform()
+
+                try:
+                    transform.location = compressed_positions[i]
+                except IndexError:
+                    transform.location = previous_position
+
+                try:
+                    transform.rotation = compressed_rotations[i]
+                except IndexError:
+                    transform.rotation = previous_rotation
+
+                previous_position = transform.location
+                previous_rotation = transform.rotation
+
+                transforms.append(transform)
+            # End For
+
+            node_transforms.append(transforms)
+        # End For
+
+        return node_transforms
 
     def _read_child_model(self, f):
         child_model = ChildModel()
         child_model.name = self._read_string(f)
-        child_model.build_number = unpack('I', f)[0]
-        child_model.transforms = [self._read_transform(f) for _ in range(self._node_count)]
         return child_model
 
     def _read_keyframe(self, f):
@@ -410,19 +464,26 @@ class PCLTBModelReader(object):
         animation = Animation()
         animation.extents = self._read_vector(f)
         animation.name = self._read_string(f)
-        animation.unknown1 = unpack('i', f)[0]
-        animation.interpolation_time = unpack('I', f)[0] if self._version >= 12 else 200
+        animation.compression_type = unpack('i', f)[0]
+        animation.interpolation_time = unpack('I', f)[0]
         animation.keyframe_count = unpack('I', f)[0]
         animation.keyframes = [self._read_keyframe(f) for _ in range(animation.keyframe_count)]
         animation.node_keyframe_transforms = []
-        for _ in range(self._node_count):
 
-            # Skip past -1
-            if self._version == 13:
-                f.seek(4, 1)
+        if animation.compression_type == CMP_None:
+            animation.is_vertex_animation = unpack('b', f)[0]
 
-            animation.node_keyframe_transforms.append(
-                [self._read_transform(f) for _ in range(animation.keyframe_count)])
+            # We don't support vertex animations yet, so alert if we accidentally load some!
+            assert(animation.is_vertex_animation == 0)
+
+            for _ in range(self.node_count):
+                animation.node_keyframe_transforms.append(
+                    [self._read_uncompressed_transform(f) for _ in range(animation.keyframe_count)])
+            # End For
+        else:
+            animation.node_keyframe_transforms = self._read_compressed_transform(animation.compression_type, animation.keyframe_count, f)
+        # End If
+
         return animation
 
     def _read_socket(self, f):
@@ -473,14 +534,14 @@ class PCLTBModelReader(object):
 
             # Hope to support at least up to v25 someday!
             if self.version not in [23]:
-                raise Exception('Unsupported file version ({}).'.format(self._version))
+                raise Exception('Unsupported file version ({}).'.format(self.version))
             # End If
 
             model.version = self.version
 
             keyframe_count = unpack('i', f)[0]
             animation_count = unpack('i', f)[0]
-            node_count = unpack('i', f)[0]
+            self.node_count = unpack('i', f)[0]
             piece_count = unpack('i', f)[0]
             child_model_count = unpack('i', f)[0]
             face_count = unpack('i', f)[0]
@@ -516,10 +577,22 @@ class PCLTBModelReader(object):
             #
             # Nodes
             #
-            model.nodes = [self._read_node(f) for _ in range(node_count)]
+            model.nodes = [self._read_node(f) for _ in range(self.node_count)]
             build_undirected_tree(model.nodes)
             weight_set_count = unpack('I', f)[0]
             model.weight_sets = [self._read_weight_set(f) for _ in range(weight_set_count)]
+
+            #
+            # Child Models
+            # 
+            child_model_count = unpack('I', f)[0]
+            model.child_models = [self._read_child_model(f) for _ in range(child_model_count - 1)]
+
+            #
+            # Animations
+            # 
+            animation_count = unpack('I', f)[0]
+            model.animations = [self._read_animation(f) for _ in range(animation_count)]
 
             return model
 

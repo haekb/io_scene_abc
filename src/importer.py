@@ -20,6 +20,7 @@ from . import utils
 
 class ModelImportOptions(object):
     def __init__(self):
+        self.should_merge_duplicate_verts = False
         self.should_import_animations = False
         self.should_import_sockets = False
         self.bone_length_min = 0.1
@@ -221,7 +222,10 @@ def import_model(model, options):
             vertex_offset += len(lod.vertices)
             face_offset += len(lod.faces)
 
+            #bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0001)#, bm.verts, 0.0001)
+
             bm.to_mesh(mesh)
+            bm.free()
 
             '''
             Assign texture coordinates.
@@ -274,6 +278,15 @@ def import_model(model, options):
                     vertex_group = mesh_object.vertex_groups[vertex_group_name]
                     vertex_group.add([vertex_offset + vertex_index], weight.bias, 'REPLACE')
             vertex_offset += len(lod.vertices)
+
+            # Work-around for PC LTB meshes having overlapping but not connected vertices...
+            if options.should_merge_duplicate_verts:
+                # Merge duplicates
+                bm = bmesh.new()
+                bm.from_mesh(mesh)
+                bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0001)
+                bm.to_mesh(mesh)
+                bm.free()
 
             ''' Parent the mesh to the armature. '''
             mesh_object.parent = armature_object
@@ -338,9 +351,9 @@ def import_model(model, options):
                     # If we have a parent, make sure to apply their matrix with ours to get position relative to our parent
                     # otherwise just use our matrix
                     if parent_matrix != None:
-                        pose_bone.matrix = parent_matrix @ matrix
-                    else:
-                        pose_bone.matrix = matrix
+                        matrix = parent_matrix @ matrix
+                    
+                    pose_bone.matrix = matrix
 
                     for _ in range(0, node.child_count):
                         node_index = node_index + 1
@@ -577,9 +590,9 @@ class ImportOperatorLTB(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     )
 
     should_import_animations: BoolProperty(
-        name="Import Animations (not yet working)",
+        name="Import Animations",
         description="When checked, animations will be imported as actions.",
-        default=False,
+        default=True,
     )
 
     should_import_sockets: BoolProperty(
@@ -606,6 +619,12 @@ class ImportOperatorLTB(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
         default=True,
     )
 
+    should_merge_duplicate_verts: BoolProperty(
+        name="Merge Duplicate Vertices",
+        description="When checked, any overlapping but non-connected vertices will be merged. (Recommended  for PC LTB files.)",
+        default=True,
+    )
+
     def draw(self, context):
         layout = self.layout
 
@@ -614,8 +633,9 @@ class ImportOperatorLTB(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
         # box.row().prop(self, 'bone_length_min')
         # box.row().prop(self, 'should_import_sockets')
 
-        # box = layout.box()
-        # box.label(text='Meshes')
+        box = layout.box()
+        box.label(text='Meshes')
+        box.row().prop(self, 'should_merge_duplicate_verts')
         # box.row().prop(self, 'should_import_lods')
         # box.row().prop(self, 'should_merge_pieces')
 
@@ -665,12 +685,14 @@ class ImportOperatorLTB(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
         options.should_import_sockets = self.should_import_sockets
         options.should_merge_pieces = self.should_merge_pieces
         options.should_clear_scene = self.should_clear_scene
+        options.should_merge_duplicate_verts = self.should_merge_duplicate_verts
         options.image = image
-        try:
-            import_model(model, options)
-        except Exception as e:
-            show_message_box(str(e), "Import Error", 'ERROR')
-            return {'CANCELLED'}
+        #try:
+        #    import_model(model, options)
+        #except Exception as e:
+        #    show_message_box(str(e), "Import Error", 'ERROR')
+        #    return {'CANCELLED'}
+        import_model(model, options)
 
         return {'FINISHED'}
 
