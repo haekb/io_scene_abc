@@ -492,6 +492,7 @@ class PCLTBModelReader(object):
         socket.name = self._read_string(f)
         socket.rotation = self._read_quaternion(f)
         socket.location = self._read_vector(f)
+        socket.scale = self._read_vector(f)
         return socket
 
     def _read_anim_binding(self, f):
@@ -594,53 +595,26 @@ class PCLTBModelReader(object):
             animation_count = unpack('I', f)[0]
             model.animations = [self._read_animation(f) for _ in range(animation_count)]
 
+            #
+            # Sockets
+            # 
+            socket_count = unpack('I', f)[0]
+            model.sockets = [self._read_socket(f) for _ in range(socket_count)]
+
+            #
+            # Animation Bindings
+            #
+            anim_binding_count = unpack('I', f)[0]
+
+            #model.anim_bindings = [self._read_anim_binding(f) for _ in range(anim_binding_count)]
+
+            for _ in range(anim_binding_count):
+                # Some LTB animation binding information can be incorrect...
+                # Almost like the mesh was accidentally cut off, very odd!
+                try:
+                    model.anim_bindings.append(self._read_anim_binding(f))
+                except Exception:
+                    pass
+
             return model
-
-            # OLD - Reference
-            next_section_offset = 0
-            while next_section_offset != -1:
-                f.seek(next_section_offset)
-                section_name = self._read_string(f)
-                next_section_offset = unpack('i', f)[0]
-                if section_name == 'Header':
-                    self._version = unpack('I', f)[0]
-                    if self._version not in [9, 10, 11, 12, 13]:
-                        raise Exception('Unsupported file version ({}).'.format(self._version))
-                    model.version = self._version
-                    f.seek(8, 1)
-                    self._node_count = unpack('I', f)[0]
-                    f.seek(20, 1)
-                    self._lod_count = unpack('I', f)[0]
-                    f.seek(4, 1)
-                    self._weight_set_count = unpack('I', f)[0]
-                    f.seek(8, 1)
-
-                    # Unknown new value
-                    if self._version >= 13:
-                        f.seek(4,1)
-
-                    model.command_string = self._read_string(f)
-                    model.internal_radius = unpack('f', f)[0]
-                    f.seek(64, 1)
-                    model.lod_distances = [unpack('f', f)[0] for _ in range(self._lod_count)]
-                elif section_name == 'Pieces':
-                    weight_count, pieces_count = unpack('2I', f)
-                    model.pieces = [self._read_piece(f) for _ in range(pieces_count)]
-                elif section_name == 'Nodes':
-                    model.nodes = [self._read_node(f) for _ in range(self._node_count)]
-                    build_undirected_tree(model.nodes)
-                    weight_set_count = unpack('I', f)[0]
-                    model.weight_sets = [self._read_weight_set(f) for _ in range(weight_set_count)]
-                elif section_name == 'ChildModels':
-                    child_model_count = unpack('H', f)[0]
-                    model.child_models = [self._read_child_model(f) for _ in range(child_model_count)]
-                elif section_name == 'Animation':
-                    animation_count = unpack('I', f)[0]
-                    model.animations = [self._read_animation(f) for _ in range(animation_count)]
-                elif section_name == 'Sockets':
-                    socket_count = unpack('I', f)[0]
-                    model.sockets = [self._read_socket(f) for _ in range(socket_count)]
-                elif section_name == 'AnimBindings':
-                    anim_binding_count = unpack('I', f)[0]
-                    model.anim_bindings = [self._read_anim_binding(f) for _ in range(anim_binding_count)]
-        return model
+            
