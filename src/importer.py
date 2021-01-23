@@ -628,10 +628,10 @@ class ImportOperatorLTB(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     def draw(self, context):
         layout = self.layout
 
-        # box = layout.box()
-        # box.label(text='Nodes')
+        box = layout.box()
+        box.label(text='Nodes')
         # box.row().prop(self, 'bone_length_min')
-        # box.row().prop(self, 'should_import_sockets')
+        box.row().prop(self, 'should_import_sockets')
 
         box = layout.box()
         box.label(text='Meshes')

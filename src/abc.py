@@ -158,6 +158,9 @@ class Socket(object):
         self.rotation = Quaternion()
         self.location = Vector()
 
+        # LTB specific
+        self.scale = Vector()
+
 
 class Animation(object):
     class Keyframe(object):
