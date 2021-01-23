@@ -338,22 +338,22 @@ class PCLTBModelReader(object):
 
         lod.type = unpack('I', f)[0]
 
-        # NULL Type
+        # Check if it's a null mesh, it skips a lot of the data...
         if lod.type == LTB_Type_Null_Mesh:
             # Early return here, because there's no more data...
-            return self._read_null_mesh(lod, f)
-        
-        # Some common data
-        obj_size = unpack('I', f)[0]
-        lod.vert_count = unpack('I', f)[0]
-        lod.face_count = unpack('I', f)[0]
-        lod.max_bones_per_face = unpack('I', f)[0]
-        lod.max_bones_per_vert = unpack('I', f)[0]
-        
-        if lod.type == LTB_Type_Rigid_Mesh:
-            lod = self._read_rigid_mesh(lod, f)
-        elif lod.type == LTB_Type_Skeletal_Mesh:
-            lod = self._read_skeletal_mesh(lod, f)
+            lod = self._read_null_mesh(lod, f)
+        else:
+            # Some common data
+            obj_size = unpack('I', f)[0]
+            lod.vert_count = unpack('I', f)[0]
+            lod.face_count = unpack('I', f)[0]
+            lod.max_bones_per_face = unpack('I', f)[0]
+            lod.max_bones_per_vert = unpack('I', f)[0]
+            
+            if lod.type == LTB_Type_Rigid_Mesh:
+                lod = self._read_rigid_mesh(lod, f)
+            elif lod.type == LTB_Type_Skeletal_Mesh:
+                lod = self._read_skeletal_mesh(lod, f)
 
         nodes_used_count = unpack('B', f)[0]
         nodes_used = [unpack('B', f)[0] for _ in range(nodes_used_count)]
