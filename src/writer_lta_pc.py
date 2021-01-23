@@ -290,18 +290,33 @@ class LTAModelWriter(object):
         # So we need to ignore that...
         if len(model.child_models) > 1:
             cm_node = on_load_cmds_node.create_child('add-childmodels')
+
+            cm_container = cm_node
+
+            # Jupiter requires child models to be in a wrapper
+            if self._version == LTAVersion.JUPITER.value:
+                cm_container = cm_node.create_container()
+
             for i, child_model in enumerate(model.child_models):
                 if i == 0:
                     continue
 
-                child_model_node = cm_node.create_child('child-model')
+                child_model_node = cm_container.create_child('child-model')
                 child_model_node.create_child('filename', child_model.name)
                 child_model_node.create_child('save-index', child_model.build_number)
             # End For
         # End If
 
         ''' Animation Weightsets '''
-        # TODO: I think these are facial weights? I don't think we support them right now..
+        if len(model.weight_sets) > 0:
+            aws_node = on_load_cmds_node.create_child('anim-weightsets')
+            weightsets_container = aws_node.create_container()
+            for weight_set in model.weight_sets:
+                weightset_node = weightsets_container.create_child('anim-weightset')
+                weightset_node.create_child('name', weight_set.name)
+                weightset_node.create_child('weights').create_property(weight_set.node_weights)
+            # End For
+        # End If
 
         ##########################################################
         # NODES
