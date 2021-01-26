@@ -1,0 +1,48 @@
+//------------------------------------------------
+//--- 010 Editor v11.0 Binary Template
+//
+//      File: 
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: 
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+
+
+// Force Big Endian
+BigEndian();
+
+struct Header {
+    char Tag[4];
+    int Version;
+    int StringTableCount;
+    int DirectoryCount;
+    int FileCount;
+    int Unk1;
+    int Unk2;
+    int Unk3;
+    uchar Hash[16];
+    char StringTable[StringTableCount];
+};
+
+struct FileInfo {
+    int FilenameOffset;
+    uint64 FileOffset;
+    uint64 CompressedFileSize;
+    uint64 UncompressedFileSize;
+    int Compression;
+};
+
+struct DirectoryInfo {
+    int FilenameOffset;
+    int FirstSubIndex;
+    int NextIndex;
+    int FileCount;
+};
+
+Header hdr;
+FileInfo files[hdr.FileCount];
+DirectoryInfo directories[hdr.DirectoryCount];
