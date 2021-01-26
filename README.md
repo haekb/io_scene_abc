@@ -10,7 +10,7 @@ Download or clone the repository, and zip up the `src` folder. Go to `Edit -> Pr
 
 To download the respository, click the green `Code -> Download ZIP` at the top of the main page.
 
-I will eventually add releases.
+...or grab a release zip if one is there!
 
 ## Supported Formats
 
@@ -19,11 +19,18 @@ Format | Import | Export
 ABC | Rigid and Skeletal | Limited
 LTA | No | Rigid and Skeletal
 LTB (PS2) | Rigid and Skeletal | No
-LTB (PC) | No | No
+LTB (PC) | Rigid and Skeletal | No
 
 The ABC file format description can be found on our wiki [here](https://github.com/cmbasnett/io_scene_abc/wiki/ABC).
 
 Additional format information can be found in [here](https://github.com/haekb/io_scene_lithtech/tree/master/research)
+
+## Known Issues
+ - In order to export you must have a mesh, a armature hooked up, and at least one animation action setup
+ - Socket locations are a tad off in Blender (They're fine in engine.)
+ - Imported skeletal meshes are mirrored on the X axis (They're flipped back on export!)
+ - Converters may not provide 1:1 source files
+ - Converters don't convert lods!
 
 ![](https://raw.githubusercontent.com/haekb/io_scene_lithtech/master/doc/readme/example.png)
 

@@ -1,0 +1,419 @@
+//------------------------------------------------
+//--- 010 Editor v11.0 Binary Template
+//
+//      File: 
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: 
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+
+local int RigidMesh = 4;
+local int SkeletalMesh = 5;
+local int VertexAnimatedMesh = 6;
+local int NullMesh = 7;
+
+// Stream Data Flags
+local int VTX_Position      = 0x0001;
+local int VTX_Normal        = 0x0002;
+local int VTX_Colour        = 0x0004;
+local int VTX_UV_Sets_1     = 0x0010;
+local int VTX_UV_Sets_2     = 0x0020;
+local int VTX_UV_Sets_3     = 0x0040;
+local int VTX_UV_Sets_4     = 0x0080;
+local int VTX_BasisVector   = 0x0100;
+
+// Animation Compression Types
+local int CMP_None = 0;
+local int CMP_Relevant = 1;
+local int CMP_Relevant_16 = 2;
+local int CMP_Relevant_Rot16 = 3;
+
+struct LTString {
+    short Length;
+    char Value[Length];
+};
+
+struct LTUV {
+    float u,v;
+};
+
+// Divide by 16
+struct LTCompressedVector {
+    short x,y,z;
+};
+
+struct LTVector {
+    float x,y,z;
+};
+
+// Divide by 0x7FFF
+struct LTCompressedQuat {
+    short x,y,z,w;
+};
+
+struct LTQuat {
+    float x,y,z,w;
+};
+
+struct LTMatrix {
+    LTQuat m[4];
+};
+
+struct OBB {
+    LTMatrix Matrix;
+    //LTVector Position;
+    //LTQuat Orientation;
+    //LTVector Dims;
+};
+
+struct Header {
+    short FileType;
+    short FileVersion;
+    int Filler[4];
+    int MeshVersion;
+    
+    int KeyFrames;
+    int ParentAnims;
+    int Nodes;
+    int Pieces;
+    int ChildModels;
+    int Faces;
+    int Vertices;
+    int VertexWeights;
+    int LODs;
+    int Sockets;
+    int WeightSets;
+    int StringCount;
+    int StringLength;
+    int VertAnimationDataSize;
+    int AnimationData; // ?
+    LTString CommandString;
+    float Radius;
+    int OBBCount;
+    OBB OBBData[OBBCount];
+    int PieceCount;
+};
+
+struct BoneSet {
+    unsigned short BoneIndexStart;
+    unsigned short BoneIndexCount;
+
+    unsigned char BoneList[4];
+    unsigned int IndexBufferIndex;
+};
+
+struct Piece {
+    int PieceType;
+
+    if (PieceType == NullMesh) {
+        int Filler;
+        return;
+    }
+
+    // Common data
+    int ObjSize;
+    int VertCount;
+    int FaceCount;
+    int MaxBonesPerFace;
+    int MaxBonesPerVert;
+
+    local int i = 0;
+    local int j = 0;
+
+    if (PieceType == RigidMesh) {
+        int DataType[4];
+        int Bone;
+
+        // Per DataType
+        for (i = 0; i < 4; i++) {
+  
+            // Per Vert
+            for (j = 0; j < VertCount; j++) {
+                if (DataType[i] & VTX_Position) {
+                    LTVector Position;
+                }
+                if (DataType[i] & VTX_Normal) {
+                    LTVector Normal;
+                }
+                if (DataType[i] & VTX_Colour) {
+                    int RGBA;
+                }
+                if (DataType[i] & VTX_UV_Sets_1) {
+                    LTUV uv_1;
+                }
+                if (DataType[i] & VTX_UV_Sets_2) {
+                    LTUV uv_2;
+                }
+                if (DataType[i] & VTX_UV_Sets_3) {
+                    LTUV uv_3;
+                }
+                if (DataType[i] & VTX_UV_Sets_4) {
+                    LTUV uv_4;
+                }
+                if (DataType[i] & VTX_BasisVector) {
+                    LTVector S;
+                    LTVector T;
+                }
+            }
+        }
+
+        unsigned short IndexList[FaceCount*3];
+    }
+    else if (PieceType == SkeletalMesh) {
+        char ReindexedBones;
+        int DataType[4];
+        
+        char MatrixPalette;
+
+        if (MatrixPalette == 0) {
+
+            // Per DataType
+            for (i = 0; i < 4; i++) {
+      
+                // Per Vert
+                for (j = 0; j < VertCount; j++) {
+                    if (DataType[i] & VTX_Position) {
+                        LTVector Position;
+    
+                        if (MaxBonesPerFace >= 2) {
+                            float Blend1;
+                        }
+                        if (MaxBonesPerFace >= 3) {
+                            float Blend2;
+                        }
+                        if (MaxBonesPerFace >= 4) {
+                            float Blend3;
+                        }
+                    }
+                    if (DataType[i] & VTX_Normal) {
+                        LTVector Normal;
+                    }
+                    if (DataType[i] & VTX_Colour) {
+                        int RGBA;
+                    }
+                    if (DataType[i] & VTX_UV_Sets_1) {
+                        LTUV uv_1;
+                    }
+                    if (DataType[i] & VTX_UV_Sets_2) {
+                        LTUV uv_2;
+                    }
+                    if (DataType[i] & VTX_UV_Sets_3) {
+                        LTUV uv_3;
+                    }
+                    if (DataType[i] & VTX_UV_Sets_4) {
+                        LTUV uv_4;
+                    }
+                    if (DataType[i] & VTX_BasisVector) {
+                        LTVector S;
+                        LTVector T;
+                    }
+                } // End Per Vert
+            } // End Per DataType
+
+            unsigned short IndexList[FaceCount*3];
+
+            int BoneSetCount;
+            BoneSet BoneSets[BoneSetCount];
+
+        } else {
+            int MinBone;
+            int MaxBone;
+
+            if (ReindexedBones) {
+                int ReindexedBoneCount;
+                int ReindexedBoneList[ReindexedBoneCount];
+            }
+
+            // Per DataType
+            for (i = 0; i < 4; i++) {
+      
+                // Per Vert
+                for (j = 0; j < VertCount; j++) {
+                    if (DataType[i] & VTX_Position) {
+                        // No position data if MaxBonesPerVert == 1?                    
+    
+                        if (MaxBonesPerVert >= 2) {
+                            LTVector Position;
+                            float Blend1;
+                        }
+                        if (MaxBonesPerVert >= 3) {
+                            float Blend2;
+                        }
+                        if (MaxBonesPerVert >= 4) {
+                            float Blend3;
+                        }
+
+                        // Needs to be last
+                        if (MaxBonesPerVert >= 2) {
+                            int Index;
+                        }
+                    }
+                    if (DataType[i] & VTX_Normal) {
+                        LTVector Normal;
+                    }
+                    if (DataType[i] & VTX_Colour) {
+                        int RGBA;
+                    }
+                    if (DataType[i] & VTX_UV_Sets_1) {
+                        LTUV uv_1;
+                    }
+                    if (DataType[i] & VTX_UV_Sets_2) {
+                        LTUV uv_2;
+                    }
+                    if (DataType[i] & VTX_UV_Sets_3) {
+                        LTUV uv_3;
+                    }
+                    if (DataType[i] & VTX_UV_Sets_4) {
+                        LTUV uv_4;
+                    }
+                    if (DataType[i] & VTX_BasisVector) {
+                        LTVector S;
+                        LTVector T;
+                    }
+                } // End Per Vert
+            } // End Per DataType
+
+
+            unsigned short IndexList[FaceCount*3];
+            
+
+        } // Matrix Palette
+
+    }
+    
+};
+
+struct LOD {
+    int TextureCount;
+    int Textures[4];
+    int RenderStyle;
+    char RenderPriority;
+    Piece piece;
+    char NodesUsedCount;
+    char NodesUsed[NodesUsedCount];
+};
+
+struct PieceHeader {
+    LTString Name;
+    int LODCount;
+    float LODDistances[LODCount];
+    int LODMin;
+    int LODMax;
+    LOD lods[LODCount] <optimize=false>;
+};
+
+struct Node {
+    // Forward declaration
+    struct Node;
+
+    LTString Name;
+    short Index;
+    char Flags;
+    LTMatrix Matrix;
+    int ChildrenCount;
+    Node Children[ChildrenCount] <optimize=false>;
+};
+
+struct WeightSet {
+    LTString Name;
+    int WeightCount;
+    float Weights[WeightCount];
+};
+
+struct WeightSetHeader {
+    int WeightSetCount;
+    WeightSet WeightSets[WeightSetCount]  <optimize=false>;    
+};
+
+struct ChildModel {
+    int ChildModelCount;
+    LTString ChildModels[ChildModelCount - 1] <optimize=false>;
+};
+
+struct KeyFrame {
+    unsigned int Time;
+    LTString CommandString;
+};
+
+struct AnimTransform (int CompressionType, int KeyFrameCount) {
+    if (CompressionType == CMP_None) {
+        char IsVertexAnimation;
+        // TODO: Figure out vertex animations
+        if (IsVertexAnimation == 0) {
+            // Transform
+            LTVector Translations[KeyFrameCount];
+            LTQuat Rotations[KeyFrameCount];
+        }
+    }
+    else if (CompressionType == CMP_Relevant) {
+        int KeyPosCount;
+        LTVector Positions[KeyPosCount];
+        int KeyRotCount;
+        LTQuat Rotations[KeyRotCount];
+    }
+    else if (CompressionType == CMP_Relevant_16) {
+        int KeyPosCount;
+        LTCompressedVector Positions[KeyPosCount];
+        int KeyRotCount;
+        LTCompressedQuat Rotations[KeyRotCount];
+    }   
+    else if (CompressionType == CMP_Relevant_Rot16) {
+        int KeyPosCount;
+        LTVector Positions[KeyPosCount];
+        int KeyRotCount;
+        LTCompressedQuat Rotations[KeyRotCount];
+    }  
+};
+
+struct Animation (int NodeCount) {
+    LTVector Dims;
+    LTString Name;
+    int CompressionType;
+    int Interp;
+    int KeyFrameCount;
+    KeyFrame Keyframes[KeyFrameCount] <optimize=false>;
+    AnimTransform Transforms(CompressionType, KeyFrameCount)[NodeCount] <optimize=false>;
+    
+};
+
+struct AnimHeader (int NodeCount) {
+    int AnimCount;
+    Animation Anims(NodeCount)[AnimCount] <optimize=false>;
+};
+
+struct Socket {
+    int NodeIndex;
+    LTString Name;
+    LTQuat Rotation;
+    LTVector Position;
+    LTVector Scale;
+};
+
+struct SocketHeader {
+    int SocketCount;
+    Socket Sockets[SocketCount] <optimize=false>;
+};
+
+struct AnimBinding {
+    LTString Name;
+    LTVector Dims;
+    LTVector Translation;
+};
+
+struct AnimBindingHeader {
+    int BindingCount;
+    AnimBinding Binding[BindingCount] <optimize=false>;
+};
+
+Header hdr;
+PieceHeader pieces[hdr.PieceCount] <optimize=false>;
+Node nodes;
+WeightSetHeader weights;
+ChildModel childModels;
+AnimHeader anims(hdr.Nodes);
+SocketHeader sockets;
+AnimBindingHeader animBindings[hdr.ChildModels];
