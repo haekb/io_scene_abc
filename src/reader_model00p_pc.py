@@ -32,37 +32,74 @@ Invalid_Bone = 255
 #
 class PCModel00PackedReader(object):
     def __init__(self):
+        self.is_little_endian = True
     
         self.version = 0
         self.node_count = 0
         self.lod_count = 0
+        self.string_table = ""
+
+    #
+    # Wrapper around .io.unpack that can eventually handle big-endian reads.
+    #
+    def _unpack(self, fmt, f):
+
+        # Force big endian if we're not little!
+        if self.is_little_endian == False:
+            fmt = '>%s' % fmt
+
+        return unpack(fmt, f)
+
+    def _get_string_from_table(self, offset):
+        value = self.string_table[offset:]
+
+        # Okay we need to find the next null character now!
+        null_terminator = -1
+        for (index, char) in enumerate(value):
+            if char == '\x00':
+                null_terminator = index
+                break
+
+        # Make sure we actually ran through the string
+        assert(null_terminator != -1)
+
+        length = offset + null_terminator
+            
+        return self.string_table[offset:length]
 
     def _read_matrix(self, f):
-        data = unpack('16f', f)
+        data = self._unpack('16f', f)
         rows = [data[0:4], data[4:8], data[8:12], data[12:16]]
         return Matrix(rows)
 
     def _read_vector(self, f):
-        return Vector(unpack('3f', f))
+        return Vector(self._unpack('3f', f))
+
+    def _read_short_quaternion(self, f):
+        x, y, z, w = self._unpack('4H', f)
+        return [w,x,y,z]#Quaternion((w, x, y, z))
 
     def _read_quaternion(self, f):
-        x, y, z, w = unpack('4f', f)
+        x, y, z, w = self._unpack('4f', f)
         return Quaternion((w, x, y, z))
 
     def _read_string(self, f):
-        return f.read(unpack('H', f)[0]).decode('ascii')
+        return f.read(self._unpack('H', f)[0]).decode('ascii')
+
+    def _read_fixed_string(self, length, f):
+        return f.read(length).decode('ascii')
 
     def _read_weight(self, f):
         weight = Weight()
-        weight.node_index = unpack('I', f)[0]
+        weight.node_index = self._unpack('I', f)[0]
         weight.location = self._read_vector(f)
-        weight.bias = unpack('f', f)[0]
+        weight.bias = self._unpack('f', f)[0]
         return weight
 
     def _read_vertex(self, f):
         vertex = Vertex()
-        weight_count = unpack('H', f)[0]
-        vertex.sublod_vertex_index = unpack('H', f)[0]
+        weight_count = self._unpack('H', f)[0]
+        vertex.sublod_vertex_index = self._unpack('H', f)[0]
         vertex.weights = [self._read_weight(f) for _ in range(weight_count)]
         vertex.location = self._read_vector(f)
         vertex.normal = self._read_vector(f)
@@ -70,8 +107,8 @@ class PCModel00PackedReader(object):
 
     def _read_face_vertex(self, f):
         face_vertex = FaceVertex()
-        face_vertex.texcoord.xy = unpack('2f', f)
-        face_vertex.vertex_index = unpack('H', f)[0]
+        face_vertex.texcoord.xy = self._unpack('2f', f)
+        face_vertex.vertex_index = self._unpack('H', f)[0]
         return face_vertex
 
     def _read_face(self, f):
@@ -378,12 +415,21 @@ class PCModel00PackedReader(object):
 
     def _read_node(self, f):
         node = Node()
-        node.name = self._read_string(f)
-        node.index = unpack('H', f)[0]
-        node.flags = unpack('b', f)[0]
-        node.bind_matrix = self._read_matrix(f)
+        name_offset = self._unpack('I', f)[0]
+        node.name = self._get_string_from_table(name_offset)
+        node.index = self._unpack('H', f)[0]
+        node.flags = self._unpack('b', f)[0]
+
+        location = self._read_vector(f)
+        rotation = self._read_quaternion(f)
+
+        # Transform location/rotation into a bind matrix!
+        mat_rot = rotation.to_matrix()
+        mat_loc = Matrix.Translation(location)
+        node.bind_matrix = mat_loc @ mat_rot.to_4x4()
+
         node.inverse_bind_matrix = node.bind_matrix.inverted()
-        node.child_count = unpack('I', f)[0]
+        node.child_count = self._unpack('I', f)[0]
         return node
 
     def _read_uncompressed_transform(self, f):
@@ -520,112 +566,293 @@ class PCModel00PackedReader(object):
         model.name = os.path.splitext(os.path.basename(path))[0]
         with open(path, 'rb') as f:
 
-            #
-            # HEADER
-            #
-            file_type = unpack('H', f)[0]
-            file_version = unpack('H', f)[0]
+            file_format = self._read_fixed_string(4, f)
 
-            if file_type is not 1:
-                raise Exception('Unsupported File Type! Only mesh LTB files are supported.')
+            # Are we big-endian?
+            if file_format == "LDOM":
+                print("!! Big-endian Model00p loaded. Haven't tested this yet, may be bugs!!!")
+                self.is_little_endian = False
+            # No, then make sure we're little endian
+            elif file_format != "MODL":
+                raise Exception('Unsupported File Format! Only Model00p files are supported.')
             # End If
 
-            if file_version is not 9:
-                raise Exception('Unsupported File Version! Importer currently only supports v9.')
-            # End If
+            self.version = self._unpack('I', f)[0]
 
-            # Skip 4 ints
-            f.seek(4 * 4, 1)
-
-            self.version = unpack('i', f)[0]
-
-            if self.version not in [23, 24, 25]:
-                raise Exception('Unsupported file version ({}).'.format(self.version))
+            # Fear for now!
+            if self.version is not 33:
+                raise Exception('Unsupported File Version! Importer currently only supports v33.')
             # End If
 
             model.version = self.version
 
-            keyframe_count = unpack('i', f)[0]
-            animation_count = unpack('i', f)[0]
-            self.node_count = unpack('i', f)[0]
-            piece_count = unpack('i', f)[0]
-            child_model_count = unpack('i', f)[0]
-            face_count = unpack('i', f)[0]
-            vertex_count = unpack('i', f)[0]
-            vertex_weight_count = unpack('i', f)[0]
-            lod_count = unpack('i', f)[0]
-            socket_count = unpack('i', f)[0]
-            weight_set_count = unpack('i', f)[0]
-            string_count = unpack('i', f)[0]
-            string_length = unpack('i', f)[0]
-            vertex_animation_data_size = unpack('i', f)[0]
-            animation_data_size = unpack('i', f)[0]
-
-            model.command_string = self._read_string(f)
-
-            model.internal_radius = unpack('f', f)[0]
-
-            #
-            # OBB Information
-            #
-            obb_count = unpack('i', f)[0]
-
-            obb_size = 64
-
-            if self.version > 23:
-                obb_size += 4
-
-            # OBB information is a matrix per each node
-            # We don't use it anywhere, so just skip it.
-            f.seek(obb_size * obb_count, 1)
-
-            #
-            # Pieces
-            # 
-
-            # Yep again!
-            piece_count = unpack('i', f)[0]
-            model.pieces = [self._read_piece(f) for _ in range(piece_count)]
+            keyframe_count = self._unpack('I', f)[0]
+            animation_count = self._unpack('I', f)[0]
+            self.node_count = self._unpack('I', f)[0]
+            piece_count = self._unpack('I', f)[0]
+            child_model_count = self._unpack('I', f)[0]
+            self.lod_count = self._unpack('I', f)[0]
+            socket_count = self._unpack('I', f)[0]
+            animation_weight_count = self._unpack('I', f)[0]
+            unk_8 = self._unpack('I', f)[0]
+            string_data_length = self._unpack('I', f)[0]
+            physics_weight_count = self._unpack('I', f)[0]
+            physics_shape_count = self._unpack('I', f)[0]
+            unk_12 = self._unpack('I', f)[0] # ??
+            unk_13 = self._unpack('I', f)[0] # ??
+            # Physics Constraints
+            stiff_sprint_constraint_count = self._unpack('I', f)[0]
+            hinge_constraint_count = self._unpack('I', f)[0]
+            limited_hinge_constraint_count = self._unpack('I', f)[0]
+            ragdoll_constraint_count = self._unpack('I', f)[0]
+            wheel_constraint_count = self._unpack('I', f)[0]
+            prismatic_constraint_count = self._unpack('I', f)[0]
+            # End
+            animation_data_length = self._unpack('I', f)[0]
+            self.string_table = self._read_fixed_string(string_data_length, f)
 
             #
             # Nodes
             #
             model.nodes = [self._read_node(f) for _ in range(self.node_count)]
             build_undirected_tree(model.nodes)
-            weight_set_count = unpack('I', f)[0]
-            model.weight_sets = [self._read_weight_set(f) for _ in range(weight_set_count)]
-
-            #
-            # Child Models
-            # 
-            child_model_count = unpack('I', f)[0]
-            model.child_models = [self._read_child_model(f) for _ in range(child_model_count - 1)]
 
             #
             # Animations
+            #
+            unknown = self._unpack('I', f)[0]
+
+            # What is it? We'll find out...one day...
+            if unknown != 0:
+                print("Unknown animation value is not 0! It's %d" % unknown)
+
             # 
-            animation_count = unpack('I', f)[0]
-            model.animations = [self._read_animation(f) for _ in range(animation_count)]
+            current_data_read = 0
 
-            #
-            # Sockets
-            # 
-            socket_count = unpack('I', f)[0]
-            model.sockets = [self._read_socket(f) for _ in range(socket_count)]
+            # RLE
+            # Process lists, TRUE if the value is there, FALSE if it's assumed data.
+            process_location = []
+            process_rotation = []
 
-            #
-            # Animation Bindings
-            #
-            anim_binding_count = unpack('I', f)[0]
+            # TODO: This should be a per each animation loop starting here!
 
-            #model.anim_bindings = [self._read_anim_binding(f) for _ in range(anim_binding_count)]
 
-            for _ in range(anim_binding_count):
-                # Some LTB animation binding information can be incorrect...
-                # Almost like the mesh was accidentally cut off, very odd!
-                try:
-                    model.anim_bindings.append(self._read_anim_binding(f))
-                except Exception:
-                    pass
+            # Track 1 seems to be all rotation data up front?
+            # Track 2 seems to be Location/Rotation data 
+
+            # Or that's suppose to how it goes, but I don't even know maaan.
+            track_1_size = self._unpack('H', f)[0]
+            track_2_size = self._unpack('H', f)[0]
+
+            combined_track_size = track_1_size + track_2_size
+
+            
+            # Data is formatted like...
+            # ((Location, Rotation) * NodeCount) * KeyframeCount
+
+            is_location = True
+            while current_data_read < combined_track_size:
+                flag = self._unpack('H', f)[0]
+
+                # Carry over data from previous frame
+                if flag == 0xFFFF:
+                    if is_location:
+                        process_location.append(False)
+                    else:
+                        process_rotation.append(False)
+
+                    is_location = not is_location
+                    continue
+                    
+                data_read = 0
+
+                if is_location:
+                    process_location.append(True)
+                    data_read += 12
+                else:
+                    process_rotation.append(True)
+                    data_read += 8
+
+                current_data_read += data_read
+
+                is_location = not is_location
+
+            # Special case read
+            locations = []
+            rotations = []
+
+            # Location and Rotation intermixed
+            if track_1_size == 0:
+                print("Reading animation data in MODE A")
+                for i in range(len(process_location)):
+                    read_location = process_location[i]
+                    read_rotation = process_rotation[i]
+
+                    if read_location:
+                        locations.append(self._read_vector(f))
+                    else:
+                        if i == 0:
+                            locations.append( Vector() )
+                        else:
+                            locations.append( locations[i - 1] )
+
+                    if read_rotation:
+                        rotations.append(self._read_short_quaternion(f))
+                    else:
+                        if i == 0:
+                            rotations.append( [32768,0,0,0] )
+                        else:
+                            rotations.append( rotations[i - 1] )
+            # Rotation only -- Not correct!!!
+            elif track_2_size == 0:
+                print("Reading animation data in MODE B")
+                for i in range(len(process_location)):
+                    read_rotation = process_rotation[i]
+
+                    if read_rotation:
+                        rotations.append(self._read_short_quaternion(f))
+                    else:
+                        if i == 0:
+                            rotations.append( [32768,0,0,0] )
+                        else:
+                            rotations.append( rotations[i - 1] )
+            # Rotation data then Location data
+            else:
+                print("Reading animation data in MODE C")
+                for i in range(len(process_location)):
+                    read_rotation = process_rotation[i]
+
+                    if read_rotation:
+                        rotations.append(self._read_short_quaternion(f))
+                    else:
+                        if i == 0:
+                            rotations.append( [32768,0,0,0] )
+                        else:
+                            rotations.append( rotations[i - 1] )
+
+                for i in range(len(process_location)):
+                    read_location = process_location[i]
+                    read_rotation = process_rotation[i]
+
+                    if read_location:
+                        locations.append(self._read_vector(f))
+                    else:
+                        if i == 0:
+                            locations.append( Vector() )
+                        else:
+                            locations.append( locations[i - 1] )
+
+
 
             return model
+
+#old
+            # #
+            # # HEADER
+            # #
+            # file_format = unpack('H', f)[0]
+            # file_version = unpack('H', f)[0]
+
+            # if file_type is not 1:
+            #     raise Exception('Unsupported File Type! Only mesh LTB files are supported.')
+            # # End If
+
+            # if file_version is not 9:
+            #     raise Exception('Unsupported File Version! Importer currently only supports v9.')
+            # # End If
+
+            # # Skip 4 ints
+            # f.seek(4 * 4, 1)
+
+            # self.version = unpack('i', f)[0]
+
+            # if self.version not in [23, 24, 25]:
+            #     raise Exception('Unsupported file version ({}).'.format(self.version))
+            # # End If
+
+            # model.version = self.version
+
+            # keyframe_count = unpack('i', f)[0]
+            # animation_count = unpack('i', f)[0]
+            # self.node_count = unpack('i', f)[0]
+            # piece_count = unpack('i', f)[0]
+            # child_model_count = unpack('i', f)[0]
+            # face_count = unpack('i', f)[0]
+            # vertex_count = unpack('i', f)[0]
+            # vertex_weight_count = unpack('i', f)[0]
+            # lod_count = unpack('i', f)[0]
+            # socket_count = unpack('i', f)[0]
+            # weight_set_count = unpack('i', f)[0]
+            # string_count = unpack('i', f)[0]
+            # string_length = unpack('i', f)[0]
+            # vertex_animation_data_size = unpack('i', f)[0]
+            # animation_data_size = unpack('i', f)[0]
+
+            # model.command_string = self._read_string(f)
+
+            # model.internal_radius = unpack('f', f)[0]
+
+            # #
+            # # OBB Information
+            # #
+            # obb_count = unpack('i', f)[0]
+
+            # obb_size = 64
+
+            # if self.version > 23:
+            #     obb_size += 4
+
+            # # OBB information is a matrix per each node
+            # # We don't use it anywhere, so just skip it.
+            # f.seek(obb_size * obb_count, 1)
+
+            # #
+            # # Pieces
+            # # 
+
+            # # Yep again!
+            # piece_count = unpack('i', f)[0]
+            # model.pieces = [self._read_piece(f) for _ in range(piece_count)]
+
+            # #
+            # # Nodes
+            # #
+            # model.nodes = [self._read_node(f) for _ in range(self.node_count)]
+            # build_undirected_tree(model.nodes)
+            # weight_set_count = unpack('I', f)[0]
+            # model.weight_sets = [self._read_weight_set(f) for _ in range(weight_set_count)]
+
+            # #
+            # # Child Models
+            # # 
+            # child_model_count = unpack('I', f)[0]
+            # model.child_models = [self._read_child_model(f) for _ in range(child_model_count - 1)]
+
+            # #
+            # # Animations
+            # # 
+            # animation_count = unpack('I', f)[0]
+            # model.animations = [self._read_animation(f) for _ in range(animation_count)]
+
+            # #
+            # # Sockets
+            # # 
+            # socket_count = unpack('I', f)[0]
+            # model.sockets = [self._read_socket(f) for _ in range(socket_count)]
+
+            # #
+            # # Animation Bindings
+            # #
+            # anim_binding_count = unpack('I', f)[0]
+
+            # #model.anim_bindings = [self._read_anim_binding(f) for _ in range(anim_binding_count)]
+
+            # for _ in range(anim_binding_count):
+            #     # Some LTB animation binding information can be incorrect...
+            #     # Almost like the mesh was accidentally cut off, very odd!
+            #     try:
+            #         model.anim_bindings.append(self._read_anim_binding(f))
+            #     except Exception:
+            #         pass
+
+            # return model
