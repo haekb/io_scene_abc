@@ -420,12 +420,12 @@ class PCModel00PackedReader(object):
         node.index = self._unpack('H', f)[0]
         node.flags = self._unpack('b', f)[0]
 
-        location = self._read_vector(f)
-        rotation = self._read_quaternion(f)
+        node.location = self._read_vector(f)
+        node.rotation = self._read_quaternion(f)
 
         # Transform location/rotation into a bind matrix!
-        mat_rot = rotation.to_matrix()
-        mat_loc = Matrix.Translation(location)
+        mat_rot = node.rotation.to_matrix()
+        mat_loc = Matrix.Translation(node.location)
         node.bind_matrix = mat_loc @ mat_rot.to_4x4()
 
         node.inverse_bind_matrix = node.bind_matrix.inverted()
@@ -509,7 +509,8 @@ class PCModel00PackedReader(object):
     def _read_keyframe(self, f):
         keyframe = Animation.Keyframe()
         keyframe.time = unpack('I', f)[0]
-        keyframe.string = self._read_string(f)
+        string_offset = unpack('I', f)[0]
+        keyframe.string = self._get_string_from_table(string_offset)
         return keyframe
 
     def _read_animation(self, f):
@@ -549,10 +550,35 @@ class PCModel00PackedReader(object):
 
     def _read_anim_binding(self, f):
         anim_binding = AnimBinding()
-        anim_binding.name = self._read_string(f)
+
         anim_binding.extents = self._read_vector(f)
-        anim_binding.origin = self._read_vector(f)
+        
+        anim_binding.radius = self._unpack('f', f)[0]
+
+        name_offset = self._unpack('I', f)[0]
+        anim_binding.name = self._get_string_from_table(name_offset)
+
+        anim_binding.interpolation_time = self._unpack('I', f)[0]
+
+        # 12 bytes of empty data hmmmm HMMMM
+        #unk_vector = self._read_vector(f)
+        unk_1 = self._unpack('I', f)[0]
+        unk_2 = self._unpack('I', f)[0]
+        unk_3 = self._unpack('I', f)[0]
+
+        fin = True
+
         return anim_binding
+
+    def _read_anim_info(self, f):
+        anim_info = AnimInfo()
+
+        anim_info.binding = self._read_anim_binding(f)
+
+        anim_info.animation.keyframe_count = self._unpack('I', f)[0]
+        anim_info.animation.keyframes = [self._read_keyframe(f) for _ in range(anim_info.animation.keyframe_count)]
+
+        return anim_info
 
     def _read_weight_set(self, f):
         weight_set = WeightSet()
@@ -594,7 +620,7 @@ class PCModel00PackedReader(object):
             self.lod_count = self._unpack('I', f)[0]
             socket_count = self._unpack('I', f)[0]
             animation_weight_count = self._unpack('I', f)[0]
-            unk_8 = self._unpack('I', f)[0]
+            animation_binding_count = self._unpack('I', f)[0]
             string_data_length = self._unpack('I', f)[0]
             physics_weight_count = self._unpack('I', f)[0]
             physics_shape_count = self._unpack('I', f)[0]
@@ -626,60 +652,105 @@ class PCModel00PackedReader(object):
             if unknown != 0:
                 print("Unknown animation value is not 0! It's %d" % unknown)
 
+
+
+
             # 
-            current_data_read = 0
+            
 
             # RLE
             # Process lists, TRUE if the value is there, FALSE if it's assumed data.
-            process_location = []
-            process_rotation = []
+            # Dictionary per animation, Location/Rotation
+            process_section = []
 
-            # TODO: This should be a per each animation loop starting here!
+            for i in range(animation_count):
+                current_data_read = 0
+                process_location = []
+                process_rotation = []
+
+                # TODO: This should be a per each animation loop starting here!
 
 
-            # Track 1 seems to be all rotation data up front?
-            # Track 2 seems to be Location/Rotation data 
+                # Track 1 seems to be all rotation data up front?
+                # Track 2 seems to be Location/Rotation data 
 
-            # Or that's suppose to how it goes, but I don't even know maaan.
-            track_1_size = self._unpack('H', f)[0]
-            track_2_size = self._unpack('H', f)[0]
+                # Or that's suppose to how it goes, but I don't even know maaan.
 
-            combined_track_size = track_1_size + track_2_size
+                # Track 2 = val | 0x8000
+                track_1_size = self._unpack('H', f)[0]
+                track_2_size = self._unpack('H', f)[0]
 
-            
-            # Data is formatted like...
-            # ((Location, Rotation) * NodeCount) * KeyframeCount
+                combined_track_size = track_1_size + track_2_size
 
-            is_location = True
-            while current_data_read < combined_track_size:
-                flag = self._unpack('H', f)[0]
+                # Data is formatted like...
+                # ((Location, Rotation) * NodeCount) * KeyframeCount
+                is_location = True
+                while current_data_read < combined_track_size:
+                    flag = self._unpack('H', f)[0]
 
-                # Carry over data from previous frame
-                if flag == 0xFFFF:
+                    # Carry over data from previous frame
+                    if flag == 0xFFFF:
+                        if is_location:
+                            process_location.append(False)
+                        else:
+                            process_rotation.append(False)
+
+                        is_location = not is_location
+                        continue
+
+                    data_read = flag
+                    if flag >= 0x8000:
+                        data_read -= 0x8000 
+
                     if is_location:
-                        process_location.append(False)
+                        process_location.append(True)
                     else:
-                        process_rotation.append(False)
+                        process_rotation.append(True)
+                        
+                    current_data_read += data_read
 
                     is_location = not is_location
-                    continue
-                    
-                data_read = 0
 
-                if is_location:
-                    process_location.append(True)
-                    data_read += 12
-                else:
-                    process_rotation.append(True)
-                    data_read += 8
+                process_section.append( { 'location': process_location, 'rotation': process_rotation } )
 
-                current_data_read += data_read
+            # Okay save the current position, and read ahead to the keyframe data
+            animation_position = f.tell()
 
-                is_location = not is_location
+            # Skip ahead to keyframes!
+            f.seek(animation_data_length , 1)
+
+            #model.anim_bindings = [self._read_anim_binding(f) for _ in range(animation_binding_count)]
+            anim_infos = [self._read_anim_info(f) for _ in range(animation_binding_count)]
+
+            animation_binding_position = f.tell()
+            f.seek(animation_position, 0)
+
+            return model
 
             # Special case read
             locations = []
             rotations = []
+
+            default_locations = []
+            default_rotations = []
+
+            # Note: Defaults should be the node transform values, not Vector(0,0,0) for example.
+
+            for node in model.nodes:
+                default_locations.append(node.location)
+                default_rotations.append(node.rotation)
+
+            # Not really it, but a starting point!
+            def decompres_quat(compresed_quat):
+                # Find highest number, assume that's 1.0
+                largest_number = -1
+                for quat in compresed_quat:
+                    if quat > largest_number:
+                        largest_number = quat
+
+                return Quaternion( ( compresed_quat[0] / largest_number, compresed_quat[1] / largest_number, compresed_quat[2] / largest_number, compresed_quat[3] / largest_number ) )
+
+                
 
             # Location and Rotation intermixed
             if track_1_size == 0:
@@ -692,15 +763,15 @@ class PCModel00PackedReader(object):
                         locations.append(self._read_vector(f))
                     else:
                         if i == 0:
-                            locations.append( Vector() )
+                            locations.append( default_locations[i] )
                         else:
                             locations.append( locations[i - 1] )
 
                     if read_rotation:
-                        rotations.append(self._read_short_quaternion(f))
+                        rotations.append( decompres_quat(self._read_short_quaternion(f)) )
                     else:
-                        if i == 0:
-                            rotations.append( [32768,0,0,0] )
+                        if i == 0: 
+                            rotations.append( default_rotations[i] )
                         else:
                             rotations.append( rotations[i - 1] )
             # Rotation only -- Not correct!!!
@@ -710,10 +781,10 @@ class PCModel00PackedReader(object):
                     read_rotation = process_rotation[i]
 
                     if read_rotation:
-                        rotations.append(self._read_short_quaternion(f))
+                        rotations.append( decompres_quat(self._read_short_quaternion(f)) )
                     else:
                         if i == 0:
-                            rotations.append( [32768,0,0,0] )
+                            rotations.append( default_rotations[i] )
                         else:
                             rotations.append( rotations[i - 1] )
             # Rotation data then Location data
@@ -723,10 +794,10 @@ class PCModel00PackedReader(object):
                     read_rotation = process_rotation[i]
 
                     if read_rotation:
-                        rotations.append(self._read_short_quaternion(f))
+                        rotations.append( decompres_quat(self._read_short_quaternion(f)) )
                     else:
                         if i == 0:
-                            rotations.append( [32768,0,0,0] )
+                            rotations.append( default_rotations[i] )
                         else:
                             rotations.append( rotations[i - 1] )
 
@@ -738,7 +809,7 @@ class PCModel00PackedReader(object):
                         locations.append(self._read_vector(f))
                     else:
                         if i == 0:
-                            locations.append( Vector() )
+                            locations.append( default_locations[i] )
                         else:
                             locations.append( locations[i - 1] )
 

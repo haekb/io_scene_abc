@@ -140,6 +140,10 @@ class Node(object):
         # Version 6 specific
         self.md_vert_count = 0
         self.md_vert_list = []
+
+        # Model00p specific
+        self.location = Vector()
+        self.rotation = Quaternion((1, 0, 0, 0))
     
     def __repr__(self):
         return self.name
@@ -216,6 +220,15 @@ class AnimBinding(object):
         self.extents = Vector()
         self.origin = Vector()
 
+        # Model00p specific
+        self.radius = 1.0
+        self.rotation = Vector() # Eulers?
+        self.interpolation_time = 200
+        
+class AnimInfo(object):
+    def __init__(self):
+        self.animation = Animation()
+        self.binding = AnimBinding()
 
 class ChildModel(object):
     def __init__(self):
