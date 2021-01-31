@@ -608,9 +608,9 @@ class PCModel00PackedReader(object):
 
             self.version = self._unpack('I', f)[0]
 
-            # Fear for now!
-            if self.version is not 33:
-                raise Exception('Unsupported File Version! Importer currently only supports v33.')
+            # Fear and Condemned
+            if self.version not in [33, 34]:
+                raise Exception('Unsupported File Version! Importer currently only supports v33/v34.')
             # End If
 
             model.version = self.version
@@ -655,41 +655,16 @@ class PCModel00PackedReader(object):
             if unknown != 0:
                 print("Unknown animation value is not 0! It's %d" % unknown)
 
-
-
-
-            # 
-            
-# ANIM_No_Compression = 0
-# ANIM_Compression = 1
-# ANIM_Carry_Over = 2
-
             # RLE
             # Process lists, TRUE if the value is there, FALSE if it's assumed data.
             # Dictionary per animation, Location/Rotation
             process_section = []
             animation_data_lengths = []
 
-            before_flags = f.tell()
-
-
-
             for i in range(animation_header_count):
                 current_data_read = 0
-                process_location = []
-                process_rotation = []
-
                 process_flags = []
 
-                # TODO: This should be a per each animation loop starting here!
-
-
-                # Track 1 seems to be all rotation data up front?
-                # Track 2 seems to be Location/Rotation data 
-
-                # Or that's suppose to how it goes, but I don't even know maaan.
-
-                # Track 2 = val | 0x8000
                 track_1_size = self._unpack('H', f)[0]
                 track_2_size = self._unpack('H', f)[0]
 
@@ -711,7 +686,6 @@ class PCModel00PackedReader(object):
 
                 #########################################################################
                 # New pass
-
 
                 def read_location_flag(current_track, data_length):
                     if data_length == 0xC:

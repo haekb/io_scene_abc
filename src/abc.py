@@ -227,7 +227,7 @@ class AnimBinding(object):
 
         self.animation_header_index = -1
         self.data_position = -1
-        self.compressed = -1 # Location compression only! Rotation data is always compressed.
+        self.is_compressed = -1 # Location compression only! Rotation data is always compressed.
         
 class AnimInfo(object):
     def __init__(self):
