@@ -23,6 +23,7 @@ from . import utils
 class ModelImportOptions(object):
     def __init__(self):
         self.should_merge_duplicate_verts = False
+        self.should_import_vertex_animations = False
         self.should_import_animations = False
         self.should_import_sockets = False
         self.bone_length_min = 0.1
@@ -737,7 +738,7 @@ class ImportOperatorModel00p(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
         image = None
 
         options = ModelImportOptions()
-
+        options.should_import_animations = True
         options.image = image
         #try:
         #    import_model(model, options)

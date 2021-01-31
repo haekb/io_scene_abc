@@ -198,6 +198,7 @@ class Animation(object):
         self.unknown1 = -1
         self.interpolation_time = 200
         self.keyframes = []
+        self.keyframe_count = 0
         self.node_keyframe_transforms = []
 
         # Version 6 specific
