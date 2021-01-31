@@ -25,6 +25,11 @@ CMP_Relevant = 1
 CMP_Relevant_16 = 2
 CMP_Relevant_Rot16 = 3
 
+# Animation processing values
+ANIM_No_Compression = 0
+ANIM_Compression = 1
+ANIM_Carry_Over = 2
+
 Invalid_Bone = 255
 
 #
@@ -560,11 +565,9 @@ class PCModel00PackedReader(object):
 
         anim_binding.interpolation_time = self._unpack('I', f)[0]
 
-        # 12 bytes of empty data hmmmm HMMMM
-        #unk_vector = self._read_vector(f)
-        unk_1 = self._unpack('I', f)[0]
-        unk_2 = self._unpack('I', f)[0]
-        unk_3 = self._unpack('I', f)[0]
+        anim_binding.animation_header_index = self._unpack('I', f)[0]
+        anim_binding.data_position = self._unpack('I', f)[0]
+        anim_binding.is_compressed = self._unpack('I', f)[0]
 
         fin = True
 
@@ -620,7 +623,7 @@ class PCModel00PackedReader(object):
             self.lod_count = self._unpack('I', f)[0]
             socket_count = self._unpack('I', f)[0]
             animation_weight_count = self._unpack('I', f)[0]
-            animation_binding_count = self._unpack('I', f)[0]
+            animation_header_count = self._unpack('I', f)[0]
             string_data_length = self._unpack('I', f)[0]
             physics_weight_count = self._unpack('I', f)[0]
             physics_shape_count = self._unpack('I', f)[0]
@@ -657,16 +660,26 @@ class PCModel00PackedReader(object):
 
             # 
             
+# ANIM_No_Compression = 0
+# ANIM_Compression = 1
+# ANIM_Carry_Over = 2
 
             # RLE
             # Process lists, TRUE if the value is there, FALSE if it's assumed data.
             # Dictionary per animation, Location/Rotation
             process_section = []
+            animation_data_lengths = []
 
-            for i in range(animation_count):
+            before_flags = f.tell()
+
+
+
+            for i in range(animation_header_count):
                 current_data_read = 0
                 process_location = []
                 process_rotation = []
+
+                process_flags = []
 
                 # TODO: This should be a per each animation loop starting here!
 
@@ -682,36 +695,115 @@ class PCModel00PackedReader(object):
 
                 combined_track_size = track_1_size + track_2_size
 
+                print("Reading animation %d at %d" % (i, f.tell()))
+
+                assert(combined_track_size != 0)
+
+                animation_data_lengths.append({ 'track1': track_1_size, 'track2': track_2_size, 'total': combined_track_size })
+
                 # Data is formatted like...
                 # ((Location, Rotation) * NodeCount) * KeyframeCount
                 is_location = True
+
+                # There can be 0xFFFF after all the data has technically been read...
+                # So this will allow us to check that too
+                wrap_up = False
+
+                #########################################################################
+                # New pass
+
+
+                def read_location_flag(current_track, data_length):
+                    if data_length == 0xC:
+                        return { 'type': 'location', 'track': current_track, 'process': ANIM_No_Compression }
+                    elif data_length == 0x6:
+                        return { 'type': 'location', 'track': current_track, 'process': ANIM_Compression }
+                    elif data_length == 0xFFFF:
+                        return { 'type': 'location', 'track': current_track, 'process': ANIM_Carry_Over }
+                    
+                    raise Exception("Location data read of %d !!!" % data_length)
+
+                def read_rotation_flag(current_track, data_length):
+                    if data_length == 0xFFFF:
+                        return { 'type': 'rotation', 'track': current_track, 'process': ANIM_Carry_Over }
+                    # Rotation is always compressed??
+                    return { 'type': 'rotation', 'track': current_track, 'process': ANIM_Compression }
+
+                    
+                def read_flag(is_location, current_track, data_length):
+                    if is_location:
+                        return read_location_flag(current_track, data_length)
+                    
+                    return read_rotation_flag(current_track, data_length)
+
+                # By default start on track 1
+                current_track = 1
+
+                # Special case, in case the first flag is 0xFFFF
+                if track_2_size > 0 and track_1_size == 0:
+                    current_track = 2
+
+
+                # Works on everything but interlaced Track1/2 data.
                 while current_data_read < combined_track_size:
                     flag = self._unpack('H', f)[0]
 
                     # Carry over data from previous frame
                     if flag == 0xFFFF:
-                        if is_location:
-                            process_location.append(False)
-                        else:
-                            process_rotation.append(False)
-
+                        process_flags.append(read_flag(is_location, current_track, flag))
                         is_location = not is_location
                         continue
+                    elif wrap_up:
+                        # We need to go back a bit now...
+                        f.seek(-2, 1)
+                        break
 
+                    # Check which track the flag is on
                     data_read = flag
                     if flag >= 0x8000:
+                        current_track = 1
                         data_read -= 0x8000 
-
-                    if is_location:
-                        process_location.append(True)
                     else:
-                        process_rotation.append(True)
+                        current_track = 2
+
+                    # Just skip the first entry, we want to read ahead!
+                    if data_read == 0:
+                        continue
+
+                    # Get the size of the data
+                    data_length = data_read - current_data_read 
+
+                    process_flags.append(read_flag(is_location, current_track, data_length))
                         
-                    current_data_read += data_read
+                    current_data_read += data_length
 
                     is_location = not is_location
 
-                process_section.append( { 'location': process_location, 'rotation': process_rotation } )
+                    # Special end conditioning
+                    # We need to guess what finishes this count off. 
+                    if is_location:
+                        final_data_length = 0xC
+                        if final_data_length + current_data_read != combined_track_size:
+                            final_data_length = 0x6
+                        
+                        if final_data_length + current_data_read == combined_track_size:
+                            process_flags.append(read_flag(is_location, current_track, final_data_length))
+                            is_location = not is_location
+                            wrap_up = True
+                    else:
+                        final_data_length = 0x8
+                        if final_data_length + current_data_read == combined_track_size:
+                            process_flags.append(read_flag(is_location, current_track, final_data_length))
+                            is_location = not is_location
+                            wrap_up = True
+                    # End While
+
+                process_section.append(process_flags)
+     
+                # End For
+
+                # End pass
+                #########################################################################
 
             # Okay save the current position, and read ahead to the keyframe data
             animation_position = f.tell()
@@ -720,7 +812,7 @@ class PCModel00PackedReader(object):
             f.seek(animation_data_length , 1)
 
             #model.anim_bindings = [self._read_anim_binding(f) for _ in range(animation_binding_count)]
-            anim_infos = [self._read_anim_info(f) for _ in range(animation_binding_count)]
+            anim_infos = [self._read_anim_info(f) for _ in range(animation_count)] 
 
             animation_binding_position = f.tell()
             f.seek(animation_position, 0)

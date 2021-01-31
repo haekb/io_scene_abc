@@ -224,6 +224,10 @@ class AnimBinding(object):
         self.radius = 1.0
         self.rotation = Vector() # Eulers?
         self.interpolation_time = 200
+
+        self.animation_header_index = -1
+        self.data_position = -1
+        self.compressed = -1 # Location compression only! Rotation data is always compressed.
         
 class AnimInfo(object):
     def __init__(self):
