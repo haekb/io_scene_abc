@@ -597,6 +597,138 @@ class PCModel00PackedReader(object):
         weight_set.node_weights = [unpack('f', f)[0] for _ in range(node_count)]
         return weight_set
 
+        
+    def _read_flag(self, is_location, current_track, data_length):
+        # Location data (Not Compressed and Compressed)
+        if data_length == 0xC:
+            return { 'type': 'location', 'track': current_track, 'process': ANIM_No_Compression }
+        elif data_length == 0x6:
+            return { 'type': 'location', 'track': current_track, 'process': ANIM_Compression }
+        # Rotation data (Compressed)
+        elif data_length == 0x8:
+            return { 'type': 'rotation', 'track': current_track, 'process': ANIM_Compression }
+        # Carry overs
+        elif data_length == 0xFFFF and is_location:
+            return { 'type': 'location', 'track': current_track, 'process': ANIM_Carry_Over }
+        elif data_length == 0xFFFF and not is_location:
+            return { 'type': 'rotation', 'track': current_track, 'process': ANIM_Carry_Over }
+
+        # Fallback in-case data is out of line!
+        raise Exception("Invalid data length (%d) for current track (%d). Is location flag (%d)" % (data_length, current_track, is_location))
+    # End Def
+
+    def _read_animation_schema(self, f):
+        # Basically a map for how we'll read a particular animation
+        # We return this data at the end of this function
+        compression_schema = []
+
+        # Data counters
+        total_data_read = 0
+        track_data_read = [0, 0]
+
+        # Generally the data flip flops between Location/Rotation/etc...
+        is_location = True
+
+        # If we're basically done this flag will signify that we need to quit
+        # There may still be 0xFFFF data at the end of a schema though...
+        wrap_up = False
+
+        track_1_size = self._unpack('H', f)[0]
+        track_2_size = self._unpack('H', f)[0]
+
+        total_track_size = track_1_size + track_2_size
+
+        # Safety, this shouldn't happen!
+        assert(total_track_size != 0)
+
+        # By default start on track 1
+        current_track = 1
+
+        # Special case, in case the first flag is 0xFFFF
+        if track_2_size > 0 and track_1_size == 0:
+            current_track = 2
+
+        while total_data_read < total_track_size:
+            debug_ftell = f.tell()
+
+            # Read the next flag
+            flag = self._unpack('H', f)[0]
+
+            if flag == 0xFFFF:
+                compression_schema.append(self._read_flag(is_location, current_track, flag))
+                is_location = not is_location
+                continue
+            elif wrap_up == True:
+                # We need to go back a bit now...
+                f.seek(-2, 1)
+                break
+
+            #
+            bytes_written = flag
+
+            # So if we're at or above 0x8000, we're on track 1
+            # To get the real bytes written, we need to remove the 0x8000 bit...
+            if bytes_written >= 0x8000:
+                current_track = 1
+                bytes_written -= 0x8000
+            else:
+                current_track = 2
+
+            # We're reading ahead, so we're okay to skip 0's
+            if bytes_written == 0:
+                is_location = not is_location
+                continue
+
+            # Get the size of the data
+            data_length = bytes_written - track_data_read[ current_track - 1 ] 
+
+            compression_schema.append(self._read_flag(is_location, current_track, data_length))
+
+            is_location = not is_location
+
+            total_data_read += data_length
+            track_data_read[ current_track - 1 ] += data_length
+
+            # Okay now we need to guess if we're at the end
+            # 
+            final_is_location = True
+            final_data_length = 0x6
+
+            if final_data_length + total_data_read != total_track_size:
+                final_data_length = 0xC
+
+            if final_data_length + total_data_read != total_track_size:
+                final_is_location = False
+                final_data_length = 0x8
+            
+            if final_data_length + total_data_read == total_track_size:
+                print("Found final data (%d), wrapping up!" % final_data_length)
+                compression_schema.append(self._read_flag(final_is_location, current_track, final_data_length))
+                is_location = not final_is_location
+                wrap_up = True
+        # End While
+
+        ##
+        # DEBUG
+
+        location_count = 0
+        rotation_count = 0
+
+        for schema in compression_schema:
+            if schema['type'] == 'location':
+                location_count += 1
+            else:
+                rotation_count += 1
+        # End For
+
+        print("Testing out count: %d == %d ?" % (location_count, rotation_count))
+        assert(location_count == rotation_count)
+
+        ##
+
+        return compression_schema
+    # End Def
+
     def from_file(self, path):
         model = Model()
         model.name = os.path.splitext(os.path.basename(path))[0]
@@ -630,7 +762,7 @@ class PCModel00PackedReader(object):
             self.lod_count = self._unpack('I', f)[0]
             socket_count = self._unpack('I', f)[0]
             animation_weight_count = self._unpack('I', f)[0]
-            animation_header_count = self._unpack('I', f)[0]
+            animation_schema_count = self._unpack('I', f)[0]
             string_data_length = self._unpack('I', f)[0]
             physics_weight_count = self._unpack('I', f)[0]
             physics_shape_count = self._unpack('I', f)[0]
@@ -665,141 +797,10 @@ class PCModel00PackedReader(object):
             # RLE
             # Process lists, TRUE if the value is there, FALSE if it's assumed data.
             # Dictionary per animation, Location/Rotation
-            process_section = []
-            animation_data_lengths = []
+            animation_schemas = []
 
-            for i in range(animation_header_count):
-                # Total
-                current_data_read = 0
-                # Track based
-                track_data_read = [0, 0]
-                process_flags = []
-
-                track_1_size = self._unpack('H', f)[0]
-                track_2_size = self._unpack('H', f)[0]
-
-                combined_track_size = track_1_size + track_2_size
-
-                print("Reading animation %d at %d" % (i, f.tell()))
-
-                assert(combined_track_size != 0)
-
-                animation_data_lengths.append({ 'track1': track_1_size, 'track2': track_2_size, 'total': combined_track_size })
-
-                # Data is formatted like...
-                # ((Location, Rotation) * NodeCount) * KeyframeCount
-                is_location = True
-
-                # There can be 0xFFFF after all the data has technically been read...
-                # So this will allow us to check that too
-                wrap_up = False
-
-                #########################################################################
-                # New pass
-
-                def read_location_flag(current_track, data_length):
-                    if data_length == 0xC:
-                        return { 'type': 'location', 'track': current_track, 'process': ANIM_No_Compression }
-                    elif data_length == 0x6:
-                        return { 'type': 'location', 'track': current_track, 'process': ANIM_Compression }
-                    elif data_length == 0xFFFF:
-                        return { 'type': 'location', 'track': current_track, 'process': ANIM_Carry_Over }
-                    
-                    raise Exception("Location data read of %d !!!" % data_length)
-
-                def read_rotation_flag(current_track, data_length):
-                    if data_length == 0xFFFF:
-                        return { 'type': 'rotation', 'track': current_track, 'process': ANIM_Carry_Over }
-                    # Rotation is always compressed??
-                    return { 'type': 'rotation', 'track': current_track, 'process': ANIM_Compression }
-
-                    
-                def read_flag(is_location, current_track, data_length):
-                    if is_location:
-                        return read_location_flag(current_track, data_length)
-                    
-                    return read_rotation_flag(current_track, data_length)
-
-                # By default start on track 1
-                current_track = 1
-
-                # Special case, in case the first flag is 0xFFFF
-                if track_2_size > 0 and track_1_size == 0:
-                    current_track = 2
-
-
-                # Works on everything but interlaced Track1/2 data.
-                while current_data_read < combined_track_size:
-                    debug_ftell = f.tell()
-
-                    flag = self._unpack('H', f)[0]
-
-                    # Carry over data from previous frame
-                    if flag == 0xFFFF:
-                        process_flags.append(read_flag(is_location, current_track, flag))
-                        # Seems safe to flip flop here...
-                        is_location = not is_location
-                        continue
-                    elif wrap_up:
-                        # We need to go back a bit now...
-                        f.seek(-2, 1)
-                        break
-
-                    # Check which track the flag is on
-                    data_read = flag
-                    if flag >= 0x8000:
-                        current_track = 1
-                        data_read -= 0x8000 
-                    else:
-                        current_track = 2
-
-                    # Just skip the first entry, we want to read ahead!
-                    if data_read == 0:
-                        continue
-
-                    # Get the size of the data
-                    data_length = data_read - track_data_read[ current_track - 1 ] 
-
-                    if data_length == 0xC or data_length == 0x6:
-                        is_location = True
-                    elif data_length == 0x8:
-                        is_location = False
-                    else:
-                        raise Exception("Invalid data length %d" % data_length)
-
-                    process_flags.append(read_flag(is_location, current_track, data_length))
-                        
-                    current_data_read += data_length
-                    track_data_read[ current_track - 1 ] += data_length
-
-                    # Special end conditioning
-                    # We need to guess what finishes this count off. 
-                    is_location = True
-                    final_data_length = 0xC
-
-                    # Is it compressed?
-                    if final_data_length + current_data_read != combined_track_size:
-                        final_data_length = 0x6
-
-                    # Is it actually rotation??
-                    if final_data_length + current_data_read != combined_track_size:
-                        is_location = False
-                        final_data_length = 0x8
-                    
-                    # Cool?
-                    if final_data_length + current_data_read == combined_track_size:
-                        process_flags.append(read_flag(is_location, current_track, final_data_length))
-                        is_location = not is_location
-                        wrap_up = True
-
-                    # End While
-
-                process_section.append(process_flags)
-     
-                # End For
-
-                # End pass
-                #########################################################################
+            for _ in range(animation_schema_count):
+                animation_schemas.append(self._read_animation_schema(f))
 
             # Okay save the current position, and read ahead to the keyframe data
             animation_position = f.tell()
@@ -844,7 +845,11 @@ class PCModel00PackedReader(object):
                     if quat > largest_number:
                         largest_number = quat
 
-                return Quaternion( ( compresed_quat[0] / largest_number, compresed_quat[1] / largest_number, compresed_quat[2] / largest_number, compresed_quat[3] / largest_number ) )
+                for i in range(len(compresed_quat)):
+                    if compresed_quat[i] != 0:
+                        compresed_quat[i] / largest_number
+
+                return Quaternion( compresed_quat )
 
             # Small helper function
             def handle_carry_over(flag_type, keyframe_list, defaults_list, keyframe_index, node_index):
@@ -864,13 +869,18 @@ class PCModel00PackedReader(object):
                 # For ... { 'type': 'location', 'track': current_track, 'process': ANIM_No_Compression }
 
                 keyframe_transforms = []
-                section = process_section[anim_info.binding.animation_header_index]
-
-                for node_index in range(self.node_count):
-                    
+                section = animation_schemas[anim_info.binding.animation_header_index]
+                
+                for keyframe_index in range(anim_info.animation.keyframe_count):
                     section_index = 0
-                    for keyframe_index in range(anim_info.animation.keyframe_count):
+                    for node_index in range(self.node_count):
 
+                        # Make sure we have space here...
+                        try:
+                            anim_info.animation.node_keyframe_transforms[node_index]
+                        except:
+                            anim_info.animation.node_keyframe_transforms.append([])
+                        
                         transform = Animation.Keyframe.Transform()
 
                         # Flags are per keyframe
@@ -887,17 +897,19 @@ class PCModel00PackedReader(object):
                                 elif process == ANIM_Compression:
                                     transform.location = decompress_vec(self._read_short_vector(f))
                                 elif process == ANIM_Carry_Over:
-                                    transform.location = handle_carry_over( flag['type'], keyframe_transforms, default_locations, keyframe_index, node_index )
+                                    transform.location = handle_carry_over( flag['type'], anim_info.animation.node_keyframe_transforms[node_index], default_locations, keyframe_index, node_index )
                             else:
                                 if process == ANIM_Compression:
                                     transform.rotation = decompres_quat(self._read_short_quaternion(f))
                                 elif process == ANIM_Carry_Over:
-                                    transform.rotation = handle_carry_over( flag['type'], keyframe_transforms, default_rotations, keyframe_index, node_index )
+                                    transform.rotation = handle_carry_over( flag['type'], anim_info.animation.node_keyframe_transforms[node_index], default_rotations, keyframe_index, node_index )
+                        # End For (Flag)
 
-                        keyframe_transforms.append(transform)
-                    # End For
-                    anim_info.animation.node_keyframe_transforms.append(keyframe_transforms)
-                # End For
+                        # Insert the transform 
+                        anim_info.animation.node_keyframe_transforms[node_index].append(transform)
+                    
+                    # End For (Node)
+                # End For (Keyframe)
                 
                 model.animations.append(anim_info.animation)
 
@@ -908,97 +920,6 @@ class PCModel00PackedReader(object):
 
 
             return model
-
-            # Special case read
-            locations = []
-            rotations = []
-
-            default_locations = []
-            default_rotations = []
-
-            # Note: Defaults should be the node transform values, not Vector(0,0,0) for example.
-
-            for node in model.nodes:
-                default_locations.append(node.location)
-                default_rotations.append(node.rotation)
-
-            # Not really it, but a starting point!
-            def decompres_quat(compresed_quat):
-                # Find highest number, assume that's 1.0
-                largest_number = -1
-                for quat in compresed_quat:
-                    if quat > largest_number:
-                        largest_number = quat
-
-                return Quaternion( ( compresed_quat[0] / largest_number, compresed_quat[1] / largest_number, compresed_quat[2] / largest_number, compresed_quat[3] / largest_number ) )
-
-                
-
-            # Location and Rotation intermixed
-            if track_1_size == 0:
-                print("Reading animation data in MODE A")
-                for i in range(len(process_location)):
-                    read_location = process_location[i]
-                    read_rotation = process_rotation[i]
-
-                    if read_location:
-                        locations.append(self._read_vector(f))
-                    else:
-                        if i == 0:
-                            locations.append( default_locations[i] )
-                        else:
-                            locations.append( locations[i - 1] )
-
-                    if read_rotation:
-                        rotations.append( decompres_quat(self._read_short_quaternion(f)) )
-                    else:
-                        if i == 0: 
-                            rotations.append( default_rotations[i] )
-                        else:
-                            rotations.append( rotations[i - 1] )
-            # Rotation only -- Not correct!!!
-            elif track_2_size == 0:
-                print("Reading animation data in MODE B")
-                for i in range(len(process_location)):
-                    read_rotation = process_rotation[i]
-
-                    if read_rotation:
-                        rotations.append( decompres_quat(self._read_short_quaternion(f)) )
-                    else:
-                        if i == 0:
-                            rotations.append( default_rotations[i] )
-                        else:
-                            rotations.append( rotations[i - 1] )
-            # Rotation data then Location data
-            else:
-                print("Reading animation data in MODE C")
-                for i in range(len(process_location)):
-                    read_rotation = process_rotation[i]
-
-                    if read_rotation:
-                        rotations.append( decompres_quat(self._read_short_quaternion(f)) )
-                    else:
-                        if i == 0:
-                            rotations.append( default_rotations[i] )
-                        else:
-                            rotations.append( rotations[i - 1] )
-
-                for i in range(len(process_location)):
-                    read_location = process_location[i]
-                    read_rotation = process_rotation[i]
-
-                    if read_location:
-                        locations.append(self._read_vector(f))
-                    else:
-                        if i == 0:
-                            locations.append( default_locations[i] )
-                        else:
-                            locations.append( locations[i - 1] )
-
-
-
-            return model
-
 #old
             # #
             # # HEADER
