@@ -629,10 +629,6 @@ class PCModel00PackedReader(object):
         # Generally the data flip flops between Location/Rotation/etc...
         is_location = True
 
-        # If we're basically done this flag will signify that we need to quit
-        # There may still be 0xFFFF data at the end of a schema though...
-        wrap_up = False
-
         track_1_size = self._unpack('H', f)[0]
         track_2_size = self._unpack('H', f)[0]
 
@@ -648,7 +644,48 @@ class PCModel00PackedReader(object):
         if track_2_size > 0 and track_1_size == 0:
             current_track = 2
 
-        while total_data_read < total_track_size:
+        # This almost works. It turns out everything is location/rotation
+        # But we just need to determine if the file is compressed...
+        flag_position = f.tell()
+        is_compressed = False
+        
+        # Hacky way to figure out if we're dealing with compressed location data
+        # Some special cases up front, then a quick peak at the data to determine if compression is used!
+        if total_track_size == 0x6:
+            # If we're simply one location entry, and it's 0x6..then we're compressed!
+            is_compressed = True
+        elif total_track_size == 0x8:
+            # We don't actually care about location here, as it's not used!
+            is_compressed = False
+        else:
+            _total = 0
+            # Run ahead a bit and check
+            while True:
+                flag = self._unpack('H', f)[0]
+                
+                if flag == 0xFFFF:
+                    continue
+
+                if flag >= 0x8000:
+                    flag -= 0x8000
+
+                flag -= _total
+
+                if flag == 0x6:
+                    is_compressed = True
+                    break
+                elif flag == 0xC:
+                    is_compressed = False
+                    break
+
+                _total += flag
+            # End While
+
+        # Move back to the flag position
+        f.seek(flag_position, 0)
+
+        # Use is_compressed to determine what we're stepping up by, and swap location = not location!
+        while True: #not wrap_up and total_data_read < total_track_size:
             debug_ftell = f.tell()
 
             # Read the next flag
@@ -658,29 +695,28 @@ class PCModel00PackedReader(object):
                 compression_schema.append(self._read_flag(is_location, current_track, flag))
                 is_location = not is_location
                 continue
-            elif wrap_up == True:
-                # We need to go back a bit now...
+            # End condition
+            elif total_data_read == total_track_size:
+                # Okay no more flags? Then move back one flag's worth of bytes, and quit
                 f.seek(-2, 1)
                 break
 
-            #
-            bytes_written = flag
-
             # So if we're at or above 0x8000, we're on track 1
             # To get the real bytes written, we need to remove the 0x8000 bit...
-            if bytes_written >= 0x8000:
+            if flag >= 0x8000:
                 current_track = 1
-                bytes_written -= 0x8000
             else:
                 current_track = 2
 
-            # We're reading ahead, so we're okay to skip 0's
-            if bytes_written == 0:
-                is_location = not is_location
-                continue
 
-            # Get the size of the data
-            data_length = bytes_written - track_data_read[ current_track - 1 ] 
+            # If rotation
+            data_length = 0x8
+
+            if is_location:
+                if is_compressed:
+                    data_length = 0x6
+                else:
+                    data_length = 0xC
 
             compression_schema.append(self._read_flag(is_location, current_track, data_length))
 
@@ -688,24 +724,6 @@ class PCModel00PackedReader(object):
 
             total_data_read += data_length
             track_data_read[ current_track - 1 ] += data_length
-
-            # Okay now we need to guess if we're at the end
-            # 
-            final_is_location = True
-            final_data_length = 0x6
-
-            if final_data_length + total_data_read != total_track_size:
-                final_data_length = 0xC
-
-            if final_data_length + total_data_read != total_track_size:
-                final_is_location = False
-                final_data_length = 0x8
-            
-            if final_data_length + total_data_read == total_track_size:
-                print("Found final data (%d), wrapping up!" % final_data_length)
-                compression_schema.append(self._read_flag(final_is_location, current_track, final_data_length))
-                is_location = not final_is_location
-                wrap_up = True
         # End While
 
         ##
@@ -847,7 +865,7 @@ class PCModel00PackedReader(object):
 
                 for i in range(len(compresed_quat)):
                     if compresed_quat[i] != 0:
-                        compresed_quat[i] / largest_number
+                        compresed_quat[i] /= largest_number
 
                 return Quaternion( compresed_quat )
 
@@ -868,7 +886,6 @@ class PCModel00PackedReader(object):
             for anim_info in anim_infos:
                 # For ... { 'type': 'location', 'track': current_track, 'process': ANIM_No_Compression }
 
-                keyframe_transforms = []
                 section = animation_schemas[anim_info.binding.animation_header_index]
                 
                 for keyframe_index in range(anim_info.animation.keyframe_count):
@@ -889,6 +906,8 @@ class PCModel00PackedReader(object):
 
                         # Let's assume that it's always Location/Rotation
                         for flag in flags:
+                            debug_ftell = f.tell()
+                            
                             process = flag['process']
 
                             if flag['type'] == 'location':

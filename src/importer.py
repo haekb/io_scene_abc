@@ -355,7 +355,7 @@ def import_model(model, options):
                         matrix = parent_matrix @ matrix
                     
                     pose_bone.matrix = matrix
-
+ 
                     for _ in range(0, node.child_count):
                         node_index = node_index + 1
                         node_index = recursively_apply_transform(nodes, node_index, pose_bones, pose_bone.matrix)
