@@ -718,8 +718,22 @@ class ImportOperatorModel00p(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
         maxlen=255,  # Max internal buffer length, longer would be clamped.
     )
 
+    should_import_animations: BoolProperty(
+        name="Import Animations",
+        description="When checked, animations will be imported as actions.",
+        default=True,
+    )
+
     def draw(self, context):
         layout = self.layout
+
+        
+        box = layout.box()
+        box.label(text='Animations')
+        box.row().prop(self, 'should_import_animations')
+
+
+        
 
     def execute(self, context):
 
@@ -738,7 +752,7 @@ class ImportOperatorModel00p(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
         image = None
 
         options = ModelImportOptions()
-        options.should_import_animations = True
+        options.should_import_animations = self.should_import_animations
         options.image = image
         #try:
         #    import_model(model, options)

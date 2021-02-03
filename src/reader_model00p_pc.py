@@ -426,7 +426,10 @@ class PCModel00PackedReader(object):
         node = Node()
         name_offset = self._unpack('I', f)[0]
         node.name = self._get_string_from_table(name_offset)
-        node.index = self._unpack('H', f)[0]
+
+        if self.version != 42:
+            node.index = self._unpack('H', f)[0]
+
         node.flags = self._unpack('b', f)[0]
 
         node.location = self._read_vector(f)
@@ -765,22 +768,27 @@ class PCModel00PackedReader(object):
 
             self.version = self._unpack('I', f)[0]
 
-            # Fear and Condemned
-            if self.version not in [33, 34]:
+            # FEAR, Condemned, FEAR 2
+            if self.version not in [33, 34, 42]:
                 raise Exception('Unsupported File Version! Importer currently only supports v33/v34.')
             # End If
 
             model.version = self.version
 
             keyframe_count = self._unpack('I', f)[0]
+
             animation_count = self._unpack('I', f)[0]
+
             self.node_count = self._unpack('I', f)[0]
             piece_count = self._unpack('I', f)[0]
             child_model_count = self._unpack('I', f)[0]
             self.lod_count = self._unpack('I', f)[0]
             socket_count = self._unpack('I', f)[0]
-            animation_weight_count = self._unpack('I', f)[0]
-            animation_schema_count = self._unpack('I', f)[0]
+
+            if self.version != 42:
+                animation_weight_count = self._unpack('I', f)[0]
+                animation_schema_count = self._unpack('I', f)[0]
+
             string_data_length = self._unpack('I', f)[0]
             physics_weight_count = self._unpack('I', f)[0]
             physics_shape_count = self._unpack('I', f)[0]
@@ -793,8 +801,11 @@ class PCModel00PackedReader(object):
             ragdoll_constraint_count = self._unpack('I', f)[0]
             wheel_constraint_count = self._unpack('I', f)[0]
             prismatic_constraint_count = self._unpack('I', f)[0]
+
             # End
-            animation_data_length = self._unpack('I', f)[0]
+            if self.version != 42:
+                animation_data_length = self._unpack('I', f)[0]
+
             self.string_table = self._read_fixed_string(string_data_length, f)
 
             #
@@ -802,6 +813,9 @@ class PCModel00PackedReader(object):
             #
             model.nodes = [self._read_node(f) for _ in range(self.node_count)]
             build_undirected_tree(model.nodes)
+
+            if self.version == 42:
+                return model
 
             #
             # Animations
