@@ -44,6 +44,9 @@ class PCModel00PackedReader(object):
         self.lod_count = 0
         self.string_table = ""
 
+        # Temp until I can figure out how animations work!
+        self._read_animations = False
+
     #
     # Wrapper around .io.unpack that can eventually handle big-endian reads.
     #
@@ -130,295 +133,95 @@ class PCModel00PackedReader(object):
         f.seek(4, 1)
         return lod
 
-    def _read_rigid_mesh(self, lod, f):
-        data_type = unpack('4I', f)
-        bone = unpack('I', f)[0]
+    def _read_mesh_data(self, lod, f):
 
-        # We need face vertex data alongside vertices!
-        face_vertex_list = []
-
-        for mask in data_type:
-            for _ in range(lod.vert_count):
-                vertex = Vertex()
-                face_vertex = FaceVertex()
-
-                # Dirty flags
-                is_vertex_used = False
-                is_face_vertex_used = False
-            
-                if mask & VTX_Position:
-                    vertex.location = self._read_vector(f)
-                    
-                    # One bone per vertex
-                    weight = Weight()
-                    weight.node_index = bone
-                    weight.bias = 1.0
-
-                    vertex.weights.append(weight)
-
-                    is_vertex_used = True
-                if mask & VTX_Normal:
-                    vertex.normal = self._read_vector(f)
-                    is_vertex_used = True
-                if mask & VTX_Colour:
-                    vertex.colour = unpack('i', f)[0]
-                    is_vertex_used = True
-                if mask & VTX_UV_Sets_1:
-                    face_vertex.texcoord.xy = unpack('2f', f)
-                    is_face_vertex_used = True
-                if mask & VTX_UV_Sets_2:
-                    face_vertex.extra_texcoords[0].xy = unpack('2f', f)
-                    is_face_vertex_used = True
-                if mask & VTX_UV_Sets_3:
-                    face_vertex.extra_texcoords[1].xy = unpack('2f', f)
-                    is_face_vertex_used = True
-                if mask & VTX_UV_Sets_4:
-                    face_vertex.extra_texcoords[2].xy = unpack('2f', f)
-                    is_face_vertex_used = True
-                if mask & VTX_BasisVector:
-                    vertex.s = self._read_vector(f)
-                    vertex.t = self._read_vector(f)
-                    is_vertex_used = True
-                # End If
-
-                if is_vertex_used:
-                    lod.vertices.append(vertex)
-
-                if is_face_vertex_used:
-                    face_vertex_list.append(face_vertex)
-                 
-            # End For
-        # End For
-
-        # Make sure our stuff is good!!
-        print ("Vert Count Check: %d/%d" % (lod.vert_count, len(lod.vertices)))
-        assert(lod.vert_count == len(lod.vertices))
-
-        # We need a "global" face, we'll fill it and re-use it.
+        vertex = Vertex()
         face = Face()
-        for _ in range(lod.face_count * 3):
-            vertex_index = unpack('H', f)[0]
+        face_vertex = FaceVertex()
 
-            face_vertex = face_vertex_list[vertex_index]
-            face_vertex.vertex_index = vertex_index
+        vertex.location = self._read_vector(f)
+        vertex.normal = self._read_vector(f)
 
-            # If we have room, append!
-            if len(face.vertices) < 3:
-                face.vertices.append(face_vertex)
-            # End If
+        face_vertex.texcoord.xy = self._unpack('2f', f)
 
-            # If we're now over, then flush!
-            if len(face.vertices) >= 3:
-                lod.faces.append(face)
-                # Make a new face, and append our face vertex
-                face = Face()
-            # End If
-        # End For
+        lod.vertices.append(vertex)
+        #lod.faces.append(face_vertex)
 
-        # Make sure our stuff is good!!
-        print ("Face Count Check: %d/%d" % (lod.face_count, len(lod.faces)))
-        assert(lod.face_count == len(lod.faces))
+        # Test to see what these unk vectors could be!
+        # vertex.location = self._read_vector(f)
+        # lod.vertices.append(vertex)
+        # vertex.location = self._read_vector(f)
+        # lod.vertices.append(vertex)
+        unk_vec_1 = self._read_vector(f)
+        unk_vec_2 = self._read_vector(f)
+
+
+        
+
+        weight_info = self._unpack('4b', f)
+        unk_1 = self._unpack('I', f)[0]
 
         return lod
 
-    def _read_skeletal_mesh(self, lod, f):
-        reindexed_bone = unpack('B', f)[0]
-        data_type = unpack('4I', f)
+    def _read_sub_lod(self, f):
+        lod = LOD()
 
-        matrix_palette = unpack('B', f)[0]
-
-        print("Matrix Palette? %d" % matrix_palette)
-
-        # We need face vertex data alongside vertices!
-        face_vertex_list = []
-
-        for mask in data_type:
-            for _ in range(lod.vert_count):
-                vertex = Vertex()
-                face_vertex = FaceVertex()
-
-                # Dirty flags
-                is_vertex_used = False
-                is_face_vertex_used = False
-
-                if mask & VTX_Position:
-                    vertex.location = self._read_vector(f)
-                    is_vertex_used = True
-
-                    weights = []
-
-                    weight = Weight()
-                    weight.bias = 1.0                    
-
-                    for i in range(lod.max_bones_per_face):
-                        # Skip the first one
-                        if i == 0:
-                            continue
-                        # End If
-
-                        # There's 3 additional blends, 
-                        # If ... max_bones_per_face >= 2,3,4
-                        if lod.max_bones_per_face >= (i+1):
-                            blend = unpack('f', f)[0]
-                            weight.bias -= blend
-
-                            blend_weight = Weight()
-                            blend_weight.bias = blend
-                            weights.append(blend_weight)
-                        # End If
-                    # End For
-
-                    weights.append(weight)
-
-                    vertex.weights = weights
-                if mask & VTX_Normal:
-                    vertex.normal = self._read_vector(f)
-                    is_vertex_used = True
-                if mask & VTX_Colour:
-                    vertex.colour = unpack('i', f)[0]
-                    is_vertex_used = True
-                if mask & VTX_UV_Sets_1:
-                    face_vertex.texcoord.xy = unpack('2f', f)
-                    is_face_vertex_used = True
-                if mask & VTX_UV_Sets_2:
-                    face_vertex.extra_texcoords[0].xy = unpack('2f', f)
-                    is_face_vertex_used = True
-                if mask & VTX_UV_Sets_3:
-                    face_vertex.extra_texcoords[1].xy = unpack('2f', f)
-                    is_face_vertex_used = True
-                if mask & VTX_UV_Sets_4:
-                    face_vertex.extra_texcoords[2].xy = unpack('2f', f)
-                    is_face_vertex_used = True
-                if mask & VTX_BasisVector:
-                    vertex.s = self._read_vector(f)
-                    vertex.t = self._read_vector(f)
-                    is_vertex_used = True
-                # End If
-
-                if is_vertex_used:
-                    lod.vertices.append(vertex)
-
-                if is_face_vertex_used:
-                    face_vertex_list.append(face_vertex)
-                
-            # End For
-        # End For
-
-        # Make sure our stuff is good!!
-        print ("Vert Count Check: %d/%d" % (lod.vert_count, len(lod.vertices)))
-        assert(lod.vert_count == len(lod.vertices))
-
-        # We need a "global" face, we'll fill it and re-use it.
-        face = Face()
-        for _ in range(lod.face_count * 3):
-            vertex_index = unpack('H', f)[0]
-
-            face_vertex = face_vertex_list[vertex_index]
-            face_vertex.vertex_index = vertex_index
-
-            # If we have room, append!
-            if len(face.vertices) < 3:
-                face.vertices.append(face_vertex)
-            # End If
-
-            # If we're now over, then flush!
-            if len(face.vertices) >= 3:
-                lod.faces.append(face)
-                # Make a new face, and append our face vertex
-                face = Face()
-            # End If
-        # End For
-
-        # Make sure our stuff is good!!
-        print ("Face Count Check: %d/%d" % (lod.face_count, len(lod.faces)))
-        assert(lod.face_count == len(lod.faces))
-
-        bone_set_count = unpack('I', f)[0]
-
-        for _ in range(bone_set_count):
-            index_start = unpack('H', f)[0]
-            index_count = unpack('H', f)[0]
-
-            bone_list = unpack('4B', f)
-
-            # ???
-            index_buffer_index = unpack('I', f)[0]
-
-            # Okay, now we can fill up our node indexes!
-            for vertex_index in range(index_start, index_start + index_count):
-                vertex = lod.vertices[vertex_index]
-
-                # We need to re-build the weight list for our vertex
-                weights = []
-
-                for (index, bone_index) in enumerate(bone_list):
-                    # If we've got an invalid bone (255) then ignore it
-                    if bone_index == Invalid_Bone:
-                        continue
-                    # End If
-
-                    vertex.weights[index].node_index = bone_index
-                    # Keep this one!
-                    weights.append(vertex.weights[index])
-                # End For
-
-                total = 0.0
-                for weight in weights:
-                    total += weight.bias
-
-                assert(total != 0.0)
-
-                vertex.weights = weights
-            #End For
-        # End For
-
+        lod.distance = unpack('f', f)[0]
+        lod.texture_index = unpack('b', f)[0]
+        lod.translucent = unpack('b', f)[0]
+        lod.cast_shadow = unpack('b', f)[0]
+        lod.unk_1 = unpack('I', f)[0]
+        
         return lod
 
     def _read_lod(self, f):
-        lod = LOD()
-
-        lod.texture_count = unpack('I', f)[0]
-        lod.textures = unpack('4I', f)
-        lod.render_style = unpack('I', f)[0]
-        lod.render_priority = unpack('b', f)[0]
-
-        lod.type = unpack('I', f)[0]
-
-        # Check if it's a null mesh, it skips a lot of the data...
-        if lod.type == LTB_Type_Null_Mesh:
-            # Early return here, because there's no more data...
-            lod = self._read_null_mesh(lod, f)
-        else:
-            # Some common data
-            obj_size = unpack('I', f)[0]
-            lod.vert_count = unpack('I', f)[0]
-            lod.face_count = unpack('I', f)[0]
-            lod.max_bones_per_face = unpack('I', f)[0]
-            lod.max_bones_per_vert = unpack('I', f)[0]
-            
-            if lod.type == LTB_Type_Rigid_Mesh:
-                lod = self._read_rigid_mesh(lod, f)
-            elif lod.type == LTB_Type_Skeletal_Mesh:
-                lod = self._read_skeletal_mesh(lod, f)
-
-        nodes_used_count = unpack('B', f)[0]
-        nodes_used = [unpack('B', f)[0] for _ in range(nodes_used_count)]
+        lod = self._read_sub_lod(f)
+        lod.unk_2 = unpack('I', f)[0]
 
         return lod
 
     def _read_piece(self, f):
         piece = Piece()
 
-        piece.name = self._read_string(f)
-        lod_count = unpack('I', f)[0]
-        piece.lod_distances = [unpack('f', f)[0] for _ in range(lod_count)]
-        piece.lod_min = unpack('I', f)[0]
-        piece.lod_max = unpack('I', f)[0]
-        piece.lods = [self._read_lod(f) for _ in range(lod_count)]
+        debug_ftell = f.tell()
 
-        # Just use the first LODs first texture
-        if lod_count > 0:
-            piece.material_index = piece.lods[0].textures[0]
+        has_lods = unpack('I', f)[0]
+
+        # Not quite sure this is right...
+        if has_lods == 0:
+            return piece
+
+        name_offset = unpack('I', f)[0]
+        piece.name = self._get_string_from_table(name_offset)
+        lod_count = unpack('I', f)[0]
+
+        piece.lods = [ self._read_lod(f) ]
+        
+        for _ in range(lod_count - 1):
+            piece.lods.append(self._read_sub_lod(f))
+
+        # Unknown values!
+
+        unk_1 = unpack('I', f)[0]
+        unk_2 = unpack('I', f)[0]
+        unk_3 = unpack('I', f)[0]
+
+        unk_4 = unpack('I', f)[0]
+        unk_5 = unpack('I', f)[0]
+
+        # End unknown values
+
+        piece.material_index = unpack('I', f)[0]
+
+        debug_ftell = f.tell()
+
+        data_length = unpack('I', f)[0]
+        index_times_two = unpack('I', f)[0]
+
+        print("Face Count ", data_length / 64)
+
+        for _ in range( int(data_length / 64) ):
+            piece.lods[0] = self._read_mesh_data(piece.lods[0], f) 
 
         return piece
 
@@ -554,10 +357,16 @@ class PCModel00PackedReader(object):
     def _read_socket(self, f):
         socket = Socket()
         socket.node_index = unpack('I', f)[0]
-        socket.name = self._read_string(f)
+
+        name_offset = self._unpack('I', f)[0]
+        socket.name = self._get_string_from_table(name_offset)
+
         socket.rotation = self._read_quaternion(f)
         socket.location = self._read_vector(f)
-        socket.scale = self._read_vector(f)
+
+        # Only one float!
+        socket.scale = self._unpack('f', f)[0]
+
         return socket
 
     def _read_anim_binding(self, f):
@@ -595,11 +404,30 @@ class PCModel00PackedReader(object):
 
     def _read_weight_set(self, f):
         weight_set = WeightSet()
-        weight_set.name = self._read_string(f)
-        node_count = unpack('I', f)[0]
-        weight_set.node_weights = [unpack('f', f)[0] for _ in range(node_count)]
+        name_offset = unpack('I', f)[0]
+        weight_set.name = self._get_string_from_table(name_offset)
+
+        unk_1 = unpack('I', f)[0]
+        weight_set.node_weights = [unpack('f', f)[0] for _ in range(self.node_count)]
+
         return weight_set
 
+    def _read_physics(self, f):
+        physics = Physics()
+        physics.vis_node_index = self._unpack('I', f)[0]
+        physics.vis_radius = self._unpack('f', f)[0]
+        physics.unk_1 = self._unpack('I', f)[0]
+
+        if physics.unk_1 > 0:
+            physics.unk_flag = self._unpack('b', f)[0]
+            physics.unk_offset = self._read_vector(f)
+        # End If
+
+        physics.unk_2 = self._unpack('I', f)[0]
+        physics.weight_set_count = self._unpack('I', f)[0]
+        physics.weight_sets = [self._unpack('I', f)[0] for _ in range(physics.weight_set_count)]
+
+        return physics
         
     def _read_flag(self, is_location, current_track, data_length):
         # Location data (Not Compressed and Compressed)
@@ -843,114 +671,151 @@ class PCModel00PackedReader(object):
             #model.anim_bindings = [self._read_anim_binding(f) for _ in range(animation_binding_count)]
             anim_infos = [self._read_anim_info(f) for _ in range(animation_count)] 
 
-            animation_binding_position = f.tell()
-            f.seek(animation_position, 0)
+            weight_set_count = unpack('I', f)[0]
+            model.weight_sets = [self._read_weight_set(f) for _ in range(weight_set_count)]
+ 
+            # Only read animations we want toooo! 
+            # This is disabled for test use!
+            if self._read_animations:
+                animation_binding_position = f.tell()
+                f.seek(animation_position, 0)
 
-            #########################################################################
-            # Animation Pass
+                #########################################################################
+                # Animation Pass
 
-            # Special case read
-            locations = []
-            rotations = []
+                # Special case read
+                locations = []
+                rotations = []
 
-            default_locations = []
-            default_rotations = []
+                default_locations = []
+                default_rotations = []
 
-            # Note: Defaults should be the node transform values, not Vector(0,0,0) for example.
+                # Note: Defaults should be the node transform values, not Vector(0,0,0) for example.
 
-            for node in model.nodes:
-                default_locations.append(node.location)
-                default_rotations.append(node.rotation)
+                for node in model.nodes:
+                    default_locations.append(node.location)
+                    default_rotations.append(node.rotation)
 
-            def decompress_vec(compressed_vec):
-                for i in range(len(compressed_vec)):
-                    if compressed_vec[i] != 0:
-                        compressed_vec[i] /= 64.0
+                def decompress_vec(compressed_vec):
+                    for i in range(len(compressed_vec)):
+                        if compressed_vec[i] != 0:
+                            compressed_vec[i] /= 64.0
 
-                return Vector( compressed_vec )
+                    return Vector( compressed_vec )
 
-            # Not really it, but a starting point!
-            def decompres_quat(compresed_quat):
-                # Find highest number, assume that's 1.0
-                largest_number = -1
-                for quat in compresed_quat:
-                    if quat > largest_number:
-                        largest_number = quat
+                # Not really it, but a starting point!
+                def decompres_quat(compresed_quat):
+                    # Find highest number, assume that's 1.0
+                    largest_number = -1
+                    for quat in compresed_quat:
+                        if quat > largest_number:
+                            largest_number = quat
 
-                for i in range(len(compresed_quat)):
-                    if compresed_quat[i] != 0:
-                        compresed_quat[i] /= largest_number
+                    for i in range(len(compresed_quat)):
+                        if compresed_quat[i] != 0:
+                            compresed_quat[i] /= largest_number
 
-                return Quaternion( compresed_quat )
+                    return Quaternion( compresed_quat )
 
-            # Small helper function
-            def handle_carry_over(flag_type, keyframe_list, defaults_list, keyframe_index, node_index):
-                if keyframe_index == 0:
-                    return defaults_list[node_index]
+                # Small helper function
+                def handle_carry_over(flag_type, keyframe_list, defaults_list, keyframe_index, node_index):
+                    if keyframe_index == 0:
+                        return defaults_list[node_index]
 
-                transform = keyframe_list[ keyframe_index - 1 ]
+                    transform = keyframe_list[ keyframe_index - 1 ]
 
-                if flag_type == 'location':
-                    return transform.location
+                    if flag_type == 'location':
+                        return transform.location
 
-                return transform.rotation
-                
-
-            # Should match up with animation count...
-            for anim_info in anim_infos:
-                # For ... { 'type': 'location', 'track': current_track, 'process': ANIM_No_Compression }
-
-                section = animation_schemas[anim_info.binding.animation_header_index]
-                
-                for keyframe_index in range(anim_info.animation.keyframe_count):
-                    section_index = 0
-                    for node_index in range(self.node_count):
-
-                        # Make sure we have space here...
-                        try:
-                            anim_info.animation.node_keyframe_transforms[node_index]
-                        except:
-                            anim_info.animation.node_keyframe_transforms.append([])
-                        
-                        transform = Animation.Keyframe.Transform()
-
-                        # Flags are per keyframe
-                        flags = [ section[ section_index ], section[ section_index + 1 ] ]
-                        section_index += 2
-
-                        # Let's assume that it's always Location/Rotation
-                        for flag in flags:
-                            debug_ftell = f.tell()
-                            
-                            process = flag['process']
-
-                            if flag['type'] == 'location':
-                                if process == ANIM_No_Compression:
-                                    transform.location = self._read_vector(f)
-                                elif process == ANIM_Compression:
-                                    transform.location = decompress_vec(self._read_short_vector(f))
-                                elif process == ANIM_Carry_Over:
-                                    transform.location = handle_carry_over( flag['type'], anim_info.animation.node_keyframe_transforms[node_index], default_locations, keyframe_index, node_index )
-                            else:
-                                if process == ANIM_Compression:
-                                    transform.rotation = decompres_quat(self._read_short_quaternion(f))
-                                elif process == ANIM_Carry_Over:
-                                    transform.rotation = handle_carry_over( flag['type'], anim_info.animation.node_keyframe_transforms[node_index], default_rotations, keyframe_index, node_index )
-                        # End For (Flag)
-
-                        # Insert the transform 
-                        anim_info.animation.node_keyframe_transforms[node_index].append(transform)
+                    return transform.rotation
                     
-                    # End For (Node)
-                # End For (Keyframe)
+
+                # Should match up with animation count...
+                for anim_info in anim_infos:
+                    # For ... { 'type': 'location', 'track': current_track, 'process': ANIM_No_Compression }
+
+                    section = animation_schemas[anim_info.binding.animation_header_index]
+                    
+                    for keyframe_index in range(anim_info.animation.keyframe_count):
+                        section_index = 0
+                        for node_index in range(self.node_count):
+
+                            # Make sure we have space here...
+                            try:
+                                anim_info.animation.node_keyframe_transforms[node_index]
+                            except:
+                                anim_info.animation.node_keyframe_transforms.append([])
+                            
+                            transform = Animation.Keyframe.Transform()
+
+                            # Flags are per keyframe
+                            flags = [ section[ section_index ], section[ section_index + 1 ] ]
+                            section_index += 2
+
+                            # Let's assume that it's always Location/Rotation
+                            for flag in flags:
+                                debug_ftell = f.tell()
+                                
+                                process = flag['process']
+
+                                if flag['type'] == 'location':
+                                    if process == ANIM_No_Compression:
+                                        transform.location = self._read_vector(f)
+                                    elif process == ANIM_Compression:
+                                        transform.location = decompress_vec(self._read_short_vector(f))
+                                    elif process == ANIM_Carry_Over:
+                                        transform.location = handle_carry_over( flag['type'], anim_info.animation.node_keyframe_transforms[node_index], default_locations, keyframe_index, node_index )
+                                else:
+                                    if process == ANIM_Compression:
+                                        transform.rotation = decompres_quat(self._read_short_quaternion(f))
+                                    elif process == ANIM_Carry_Over:
+                                        transform.rotation = handle_carry_over( flag['type'], anim_info.animation.node_keyframe_transforms[node_index], default_rotations, keyframe_index, node_index )
+                            # End For (Flag)
+
+                            # Insert the transform 
+                            anim_info.animation.node_keyframe_transforms[node_index].append(transform)
+                        
+                        # End For (Node)
+                    # End For (Keyframe)
+                    
+                    model.animations.append(anim_info.animation)
+
                 
-                model.animations.append(anim_info.animation)
 
-            
+                # End Pass
+                #########################################################################
+            # End If
 
-            # End Pass
-            #########################################################################
+            #
+            # Sockets
+            # 
+            socket_count = unpack('I', f)[0]
+            model.sockets = [self._read_socket(f) for _ in range(socket_count)]
 
+            #
+            # Child Models
+            # 
+            child_model_count = unpack('I', f)[0]
+            model.child_models = [self._read_child_model(f) for _ in range(child_model_count - 1)]
+
+            debug_ftell = f.tell()
+
+            # Small flag determines if we excluded geometry on compile!
+            has_geometry = unpack('b', f)[0]
+
+            # No geomtry? Then let's exit!
+            if has_geometry == 0:
+                return model
+
+            #
+            # Physics
+            #
+            model.physics = self._read_physics(f)
+
+            # 
+            # Pieces
+            #
+            model.pieces = [self._read_piece(f) for _ in range(piece_count)]
 
             return model
 #old

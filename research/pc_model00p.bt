@@ -69,15 +69,6 @@ struct Header {
     char StringList[StringDataLength];
 };
 
-/*
-  FUN_008a6b6b(&DAT_00cdb341,&PTR_LAB_00c9f4c0,FUN_008a6b6b,
-               (uint)(in_NT & 1) * 0x4000 | (uint)(in_OF & 1) * 0x800 | (uint)(in_IF & 1) * 0x200 |
-               (uint)(in_TF & 1) * 0x100 | (uint)(in_SF & 1) * 0x80 | (uint)(in_ZF & 1) * 0x40 |
-               (uint)(in_AF & 1) * 0x10 | (uint)(in_PF & 1) * 4 | (uint)(in_CF & 1) |
-               (uint)(in_ID & 1) * 0x200000 | (uint)(in_VIP & 1) * 0x100000 |
-               (uint)(in_VIF & 1) * 0x80000 | (uint)(in_AC & 1) * 0x40000);
-
-*/
 struct AnimationHeaderOld {
     short UnkShort;
     short what;
@@ -357,7 +348,8 @@ struct Mesh {
 
 struct MeshHeader {
     int TextureCount;
-
+    
+    // DataLength / 64 = MeshData
     int DataLength;
     // DataCount / 2 = tri-fs count
     int DataCount;

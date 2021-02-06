@@ -93,6 +93,14 @@ class LOD(object):
         self.s = Vector()
         self.t = Vector()
 
+        # Model00p specific
+        self.distance = 0.0
+        self.texture_index = 0
+        self.translucent = 0
+        self.cast_shadow = 0
+        self.unk_1 = 0
+        self.unk_2 = 0
+
     def get_face_vertices(self, face_index):
         return [self.vertices[vertex.vertex_index] for vertex in self.faces[face_index].vertices]
 
@@ -240,7 +248,24 @@ class ChildModel(object):
         self.name = ''
         self.build_number = 0
         self.transforms = []
+#
+# Model00p+ specific
+#
+class Physics(object):
+    def __init__(self):
+        self.vis_node_index = 0
+        self.vis_radius = 0.0
+        
+        # Unk
+        self.unk_1 = 0
+        # If Unk1 > 0 ?
+        self.unk_flag = 0
+        self.unk_offset = Vector()
+        # End If
 
+        self.unk_2 = 0
+        self.weight_set_count = 0
+        self.weight_sets = [] # Array of name offsets
 
 class Model(object):
     def __init__(self):
@@ -268,6 +293,9 @@ class Model(object):
         self.flip_anim = True
 
         # LTB specific
+
+        # Model00p specific
+        self.physics = None
 
         
     @property

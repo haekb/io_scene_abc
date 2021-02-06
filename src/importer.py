@@ -721,7 +721,7 @@ class ImportOperatorModel00p(bpy.types.Operator, bpy_extras.io_utils.ImportHelpe
     should_import_animations: BoolProperty(
         name="Import Animations",
         description="When checked, animations will be imported as actions.",
-        default=True,
+        default=False,
     )
 
     def draw(self, context):
