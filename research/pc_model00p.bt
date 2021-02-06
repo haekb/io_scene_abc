@@ -1,0 +1,421 @@
+//------------------------------------------------
+//--- 010 Editor v11.0 Binary Template
+//
+//      File: PC Model00p Template
+//   Authors: HeyThereCoffeee
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: 
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+
+struct LTString {
+    ushort Length;
+    char Value[Length];
+};
+
+struct LTUV {
+    float u,v;
+};
+
+// Divide by 64
+struct LTCompressedVector {
+    short x,y,z;
+};
+
+struct LTVector {
+    float x,y,z;
+};
+
+// Divide by 0x7FFF
+struct LTCompressedQuat {
+    ushort x,y,z,w;
+};
+
+struct LTQuat {
+    float x,y,z,w;
+};
+
+struct LTMatrix {
+    LTQuat m[4];
+};
+
+struct Header {
+    char Format[4];
+    int Version;
+    int KeyframeCount;
+    int AnimationCount;
+    int NodeCount;
+    int PieceCount;
+    int ChildModelCount; // For some reason this always includes the current model, so it's always +1 more!
+    int LODCount;
+    int SocketCount;
+    int AnimationWeightCount;
+    int AnimationHeaderCount; // Use to be AnimationBindingCount...
+    int StringDataLength; // Length in bytes of the text section
+    int PhysicsWeightCount;
+    int PhysicsShapeCount;
+    int Unk12;
+    int Unk13;
+    int StiffSpringConstraintCount;
+    int HingeConstraintCount;
+    int LimitedHingeConstraintCount;
+    int RagdollConstraintCount;
+    int WheelConstraintCount;
+    int PrismaticConstraintCount;
+    int AnimationDataLength;// Maybe Mesh or Animation Data?
+    char StringList[StringDataLength];
+};
+
+/*
+  FUN_008a6b6b(&DAT_00cdb341,&PTR_LAB_00c9f4c0,FUN_008a6b6b,
+               (uint)(in_NT & 1) * 0x4000 | (uint)(in_OF & 1) * 0x800 | (uint)(in_IF & 1) * 0x200 |
+               (uint)(in_TF & 1) * 0x100 | (uint)(in_SF & 1) * 0x80 | (uint)(in_ZF & 1) * 0x40 |
+               (uint)(in_AF & 1) * 0x10 | (uint)(in_PF & 1) * 4 | (uint)(in_CF & 1) |
+               (uint)(in_ID & 1) * 0x200000 | (uint)(in_VIP & 1) * 0x100000 |
+               (uint)(in_VIF & 1) * 0x80000 | (uint)(in_AC & 1) * 0x40000);
+
+*/
+struct AnimationHeaderOld {
+    short UnkShort;
+    short what;
+    char what2;
+    int Unk[19];
+    int Unk2[9];
+    int AnimationDataLength;
+    ushort Flags[4];
+};
+ 
+struct Node {
+    int NameOffset;
+    short Index; // Node Index
+    char Flag; // Node Flags
+    LTVector Location;
+    LTQuat Rotation;
+    int ChildCount;
+};
+
+struct Transform {
+    LTVector Position;
+    LTCompressedQuat Rotation;
+};
+
+struct TransformNoRotation {
+    LTVector Position;
+};
+
+struct TransformNoPosition {
+    LTCompressedQuat Rotation;
+};
+
+
+
+// Forward
+struct AnimationHeader;
+
+struct Animation (int NodeCount, AnimationHeader &animHdr) {
+/*
+    if (animHdr.Type3 & 0x8000) {
+        Transform FirstTransform;//[NodeCount];
+    } else {
+        TransformNoPosition FirstTransform;
+    }
+
+
+    if (animHdr.Type5 & 0x8000) { 
+        Transform Transforms[NodeCount-1];
+    } else {
+        LTCompressedQuat Transforms[NodeCount-1];
+    }
+*/
+
+
+/*
+    if (animHdr.Type == 12) {
+        TransformNoRotation Transforms[NodeCount];
+    }
+    else if (animHdr.Type == 16) {
+        TransformNoPosition Transforms[NodeCount];
+    } else if (animHdr.Type == 40) {
+        Transform Transforms[NodeCount];
+    }
+
+    if (animHdr.Type2 == 12) {
+        TransformNoRotation Transforms2[NodeCount];
+    }
+    else if (animHdr.Type2 == 16) {
+        TransformNoPosition Transforms2[NodeCount];
+    } else if (animHdr.Type2 == 40) {
+        Transform Transforms2[NodeCount];
+    }
+*/
+    
+    // 0xFFFF = no data
+    // 0x8000 = data!
+    // If 0x8000, then a running count in bytes is OR'd onto 0x8000. 
+    // Ex/ First instance is 0x8000, a vector sized to 12 bytes occurs, the next 0x8000 instance will be 0x800C.
+
+/*
+It starts off with the total data length, and then 0. Next two things can happen. (For reference: 65535 = 0xFFFF, and 32768 = 0x8000) 
+
+It can be 0xFFFF which means no data/carry over the previous data (RLE), or it can be a value OR'd by 0x8000. If the value is 0x8000 it's OR'd by a running total of bytes. 
+
+So to read in the flags you need to do something like this:
+var total = read(2) 
+skip(2) // skip the 0 padding
+
+var running_total = 0
+var is_data_pos = True
+while running_total < total:
+  var current_flag = read(2)
+  // Data seems to be stored as Pos, Rot, Pos, Rot...
+  // So flip the flag
+  is_data_pos = !is_data_pos
+  
+  // Skip this value!
+  if current_flag == 0xFFFF:
+    continue
+  
+  // Maybe not needed??
+  // Get the amount that's been read so far
+  //var read_so_far = current_value - 0x8000
+
+  if is_data_pos:
+    running_total += 12
+  else:
+    running_total += 8 // 4 shorts   
+
+Although the RLE part seems a bit tricky, as it will only create another flag section if the data has changed. So I think I need to also track the total number of frames per this animation to determine which frames have data vs what is carried over.
+
+*/
+/*
+    // Example is based off 1x1 square 
+    if (animHdr.Type3 != 65535) {//& 0x8000 == 0) {
+        LTVector Position;
+    }
+    if (animHdr.Type4 != 65535) {
+        LTCompressedQuat Rotation;
+    }
+    if (animHdr.Type5 != 65535) {
+        LTVector Position2;
+    }
+    if (animHdr.Type6 != 65535) {
+        LTCompressedQuat Rotation2;
+    }
+  */  
+
+};
+
+// This is RLE boo!
+// Type1 seems to be the size of the actual animation data, but it's sometimes not?
+// There's then a lot of 0xFFFFFFF and some 0x8000!
+
+// Maybe??
+// Data length?
+// Always ends with 0 section
+// 0xFFFF signifies nothing here mate
+// 0x8000 signifies repeat
+// VALUE | 0x8000 signifies repeating this value
+// Anything | 0x8000 eventually adds up to the data length? (Not in all cases)
+struct AnimationHeader {
+    int Unk;
+
+    ushort Track1;
+    ushort Track2;
+
+    // Divide by 2 (without having to take into account 0!)
+    local int Track1Count = Track1 >> 1;
+    local int Track2Count = Track2 >> 1;
+
+    //ushort Flags[Track1Count + Track2Count + 4000];
+};
+
+struct AnimationKeyframe {
+    int Time;
+    int StringOffset;
+};
+
+struct AnimationInfo {
+    LTVector Dims;
+    float Radius;
+    int NameOffset;
+    int InterpTime;
+    int SchemaIndex;
+    int DataPosition;
+    int IsCompressed;
+    int KeyframeCount;
+    AnimationKeyframe Keyframes[KeyframeCount];
+};
+
+struct Piece {
+    int Unk[18];
+    char Unk;
+    char TextureIndex;
+    char Translucent;
+    char CastsShadow;
+};
+
+struct Test {
+    int Here;
+};
+
+struct AnimSchema {
+    char Data;
+};
+
+struct AnimData {
+    char Data;
+};
+
+struct ChildModel {
+    LTString Name;
+};
+
+struct ChildModelHeader {
+    int ChildModelCount;
+    ChildModel ChildModels[ChildModelCount - 1] <optimize=false>;
+};
+
+struct PhysicsWeightSet {
+    int NameOffset;
+};
+
+struct PhysicsHeader {
+    int VisNode;
+    float VisRadius;
+    int Unk1;
+    if (Unk1 > 0) {
+        char UnkFlag;
+        LTVector Offset;
+    }
+    int Unk2;
+    int WeightSetCount;
+    PhysicsWeightSet WeightSets[WeightSetCount] <optimize=false>;
+};
+
+struct AnimationWeightSet (int NodeCount) {
+    // Actually NameOffset
+    int NameOffset; 
+    int Unk; // ?
+    float Weights[NodeCount];
+};
+
+struct AnimationWeightSetHeader (int NodeCount) {
+    int Count;
+    AnimationWeightSet WeightSets(NodeCount)[Count] <optimize=false>;
+};
+
+struct LODGroup {
+    float LodDistance;
+    char TextureIndex;
+    char Translucent;
+    char CastShadow;
+    int Unk1;
+    int Unk2;
+};
+
+struct SubLODGroup {
+    float LodDistance;
+    char TextureIndex;
+    char Translucent;
+    char CastShadow;
+    int Unk1;
+};
+
+struct LODGroupHeader {
+    int HasLODs;
+    if (HasLODs > 0) {
+        int NameOffset;
+        int LODCount;
+        LODGroup LODGroups;
+        SubLODGroup SubLODs[ LODCount - 1 ] <optimize=false>;
+    }
+};
+
+struct Unk2 {
+    int Unk3; // LOD Related?
+    int PieceCount;
+    int Unk5; // LOD Related?
+    int Unk6;
+    int Unk7;
+    if (PieceCount == 0) {
+        LTString MeshFile;
+    }
+};
+
+struct Mesh {
+    LTVector Vertex;
+    LTVector Normals;
+    LTUV UVs;
+    LTVector Unk1;
+    LTVector Unk4;
+    uchar WeightInfo[4];
+    int Unk3;
+};
+
+struct MeshHeader {
+    int TextureCount;
+
+    int DataLength;
+    // DataCount / 2 = tri-fs count
+    int DataCount;
+    Mesh MeshData[DataLength/64];
+};
+
+struct ContainsGeometry {
+    char Flag;
+};
+
+struct Socket {
+    int NodeIndex;
+    int NameOffset;
+    LTQuat Rotation;
+    LTVector Position;
+    float Scale;
+};
+
+struct SocketHeader {
+    int SocketCount;
+    Socket Sockets[SocketCount] <optimize=false>;
+};
+
+Header hdr;
+
+// String database, we need to skip it for now
+//FSeek(FTell() + hdr.StringDataLength);
+
+Node Nodes[hdr.NodeCount];
+AnimationHeader animHdr;
+
+if (hdr.AnimationDataLength > 0) {
+    // CUBE
+    //AnimSchema skip[8]; // Replace this with the schema length
+    // DELTA
+    //AnimSchema skip[652]; // delta 652
+    // ROPE
+    AnimSchema skip[32];
+    // Condemned Default00p
+    //AnimSchema skip[8];
+} else {
+    AnimSchema skip[4];
+}
+AnimData skip2[hdr.AnimationDataLength];
+//Animation Anim(hdr.NodeCount, animHdr)[hdr.AnimationCount] <optimize=false>;
+AnimationInfo animInfo[hdr.AnimationCount] <optimize=false>;
+
+AnimationWeightSetHeader animWeightSetHeader(hdr.NodeCount);
+
+SocketHeader socketHeader;
+
+ChildModelHeader childModels;
+
+ContainsGeometry hasGeometry;
+// Geometry related
+PhysicsHeader PhysicsInfo;
+
+
+LODGroupHeader lodGroupHeader;
+Unk2 unk2;
+MeshHeader meshHeader;
