@@ -269,21 +269,69 @@ struct ChildModelHeader {
     ChildModel ChildModels[ChildModelCount - 1] <optimize=false>;
 };
 
-struct PhysicsWeightSet {
+struct NodeWeight {
+    char Physics;
+    // Differences from 1.0/0.0?
+    float VelocityGain;
+    float HierachyGain;
+};
+
+struct PhysicsWeightSet (int Count) {
     int NameOffset;
+    NodeWeight NodeWeights[Count];
+};
+
+struct PhysicsShape {
+    char ShapeIndex;
+    LTVector Offset;
+    LTQuat Orientation;
+
+    float Cor;
+    float Friction;
+    
+    int CollisionGroup; // Maybe CollisionGroup
+    int NodeIndex;
+
+    float Mass;
+    float Density; // This can be scaled per shape!
+    float Radius;
+
+    // If Orientation isn't 0,0,0,1 then it's not a sphere!
+    // Probably a capsule, haven't ran into anyother shapes yet tho.
+    if (Orientation.w != 1.0) {
+        int Unk1;
+        float LengthPt1;
+        float Unk2[2];
+        float LengthPt2;
+        int Unk3;
+    }
+};
+
+struct PhysicsConstraintData {
+    int Type;
+    int ShapeIndex;
+    int VertCount;
+    //int Shape2Index;
+    if (Type == 4) { // Ragdoll constraint
+        float Data[24];
+        float Friction;
+    } else if (Type == 3) { // Limited Hinge Constraint
+        float Data[18];
+        float Friction;
+        float Unk1;
+        float Unk2;
+    }
 };
 
 struct PhysicsHeader {
     int VisNode;
     float VisRadius;
-    int Unk1;
-    if (Unk1 > 0) {
-        char UnkFlag;
-        LTVector Offset;
-    }
-    int Unk2;
+    int ShapeCount;
+    PhysicsShape Shapes[ShapeCount] <optimize=false>;
+    int ConstraintCount;
+    PhysicsConstraintData ConstraintData[ConstraintCount] <optimize=false>;
     int WeightSetCount;
-    PhysicsWeightSet WeightSets[WeightSetCount] <optimize=false>;
+    PhysicsWeightSet WeightSets(ShapeCount)[WeightSetCount] <optimize=false>;
 };
 
 struct AnimationWeightSet (int NodeCount) {
@@ -298,31 +346,32 @@ struct AnimationWeightSetHeader (int NodeCount) {
     AnimationWeightSet WeightSets(NodeCount)[Count] <optimize=false>;
 };
 
-struct LODGroup {
+struct LODInfo {
     float LodDistance;
     char TextureIndex;
     char Translucent;
     char CastShadow;
-    int Unk1;
-    int Unk2;
+    int PieceCount;
+    int PieceIndexes[PieceCount];
 };
 
-struct SubLODGroup {
+struct SubLODInfo {
     float LodDistance;
     char TextureIndex;
     char Translucent;
     char CastShadow;
     int Unk1;
+};
+
+struct LODGroup {
+    int NameOffset;
+    int LODCount;
+    LODInfo LODInfoData[LODCount] <optimize=false>;
 };
 
 struct LODGroupHeader {
-    int HasLODs;
-    if (HasLODs > 0) {
-        int NameOffset;
-        int LODCount;
-        LODGroup LODGroups;
-        SubLODGroup SubLODs[ LODCount - 1 ] <optimize=false>;
-    }
+    int LODGroupCount;
+    LODGroup Groups[LODGroupCount] <optimize=false>;
 };
 
 struct Unk2 {
@@ -374,6 +423,10 @@ struct SocketHeader {
     Socket Sockets[SocketCount] <optimize=false>;
 };
 
+struct CondemnedUnk {
+    int Unk;
+};
+
 Header hdr;
 
 // String database, we need to skip it for now
@@ -384,9 +437,9 @@ AnimationHeader animHdr;
 
 if (hdr.AnimationDataLength > 0) {
     // CUBE
-    AnimSchema skip[8]; // Replace this with the schema length
+    //AnimSchema skip[8]; // Replace this with the schema length
     // DELTA
-    //AnimSchema skip[652]; // delta 652
+    AnimSchema skip[652]; // delta 652
     // ROPE
     //AnimSchema skip[32];
     // Condemned Default00p
@@ -401,6 +454,10 @@ AnimationInfo animInfo[hdr.AnimationCount] <optimize=false>;
 AnimationWeightSetHeader animWeightSetHeader(hdr.NodeCount);
 
 SocketHeader socketHeader;
+
+if (hdr.Version == 34) {
+    CondemnedUnk unk;
+}
 
 ChildModelHeader childModels;
 

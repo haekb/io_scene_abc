@@ -478,16 +478,42 @@ class PCModel00PackedReader(object):
 
         return weight_set
 
+    def _read_physics_shape(self, f):
+        shape = PhysicsShape()
+
+        shape.index = self._unpack('b', f)[0]
+        shape.offset = self._read_vector(f)
+        shape.orientation = self._read_quaternion(f)
+        shape.cor = self._unpack('f', f)[0]
+        shape.friction = self._unpack('f', f)[0]
+        shape.collision_group = self._unpack('I', f)[0]
+        shape.node_index = self._unpack('I', f)[0]
+        shape.mass = self._unpack('f', f)[0]
+        shape.density = self._unpack('f', f)[0]
+        shape.radius = self._unpack('f', f)[0]
+
+        # Capsule specific
+        # Since sphere doesn't have orientation data, this works?
+        if shape.orientation.w != 1.0:
+            shape.unk_1 = self._unpack('I', f)[0]
+            shape.length_pt1 = self._unpack('f', f)[0]
+            shape.unk_2 = self._unpack('I', f)[0]
+            shape.unk_2 = self._unpack('I', f)[0]
+            shape.length_pt1 = self._unpack('f', f)[0]
+            shape.unk_2 = self._unpack('I', f)[0]
+        # End If
+
+        return shape
+
     def _read_physics(self, f):
         physics = Physics()
         physics.vis_node_index = self._unpack('I', f)[0]
         physics.vis_radius = self._unpack('f', f)[0]
-        physics.unk_1 = self._unpack('I', f)[0]
+        physics.shape_count = self._unpack('I', f)[0]
 
-        if physics.unk_1 > 0:
-            physics.unk_flag = self._unpack('b', f)[0]
-            physics.unk_offset = self._read_vector(f)
-        # End If
+        physics.shapes = [ self._read_physics_shape(f) for _ in range(physics.shape_count) ]
+
+        return physics
 
         physics.unk_2 = self._unpack('I', f)[0]
         physics.weight_set_count = self._unpack('I', f)[0]
@@ -734,7 +760,7 @@ class PCModel00PackedReader(object):
             #model.anim_bindings = [self._read_anim_binding(f) for _ in range(animation_binding_count)]
             anim_infos = [self._read_anim_info(f) for _ in range(animation_count)] 
 
-            weight_set_count = unpack('I', f)[0]
+            weight_set_count = self._unpack('I', f)[0]
             model.weight_sets = [self._read_weight_set(f) for _ in range(weight_set_count)]
  
             # Only read animations we want toooo! 
@@ -852,19 +878,19 @@ class PCModel00PackedReader(object):
             #
             # Sockets
             # 
-            socket_count = unpack('I', f)[0]
+            socket_count = self._unpack('I', f)[0]
             model.sockets = [self._read_socket(f) for _ in range(socket_count)]
 
             #
             # Child Models
             # 
-            child_model_count = unpack('I', f)[0]
+            child_model_count = self._unpack('I', f)[0]
             model.child_models = [self._read_child_model(f) for _ in range(child_model_count - 1)]
 
             debug_ftell = f.tell()
 
             # Small flag determines if we excluded geometry on compile!
-            has_geometry = unpack('b', f)[0]
+            has_geometry = self._unpack('b', f)[0]
 
             # No geomtry? Then let's exit!
             if has_geometry == 0:

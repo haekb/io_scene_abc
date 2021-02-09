@@ -251,17 +251,37 @@ class ChildModel(object):
 #
 # Model00p+ specific
 #
+class PhysicsShape(object):
+    def __init__(self):
+        self.index = 0
+        self.offset = Vector()
+        self.orientation = Quaternion()
+        self.cor = 0.0
+        self.friction = 0.0
+        self.collision_group = 0
+        self.node_index = 0
+        self.mass = 0.0
+        self.density = 0.0 # Scaled
+        self.radius = 0.0
+
+        # Capsule specific
+        # If Orientation.w != 0.0
+        self.unk_1 = 0
+        self.length_pt1 = 0.0
+        self.unk_2 = 0
+        self.unk_3 = 0
+        self.length_pt2 = 0.0
+        self.unk_4 = 0
+        # End If
+
 class Physics(object):
     def __init__(self):
         self.vis_node_index = 0
         self.vis_radius = 0.0
         
-        # Unk
-        self.unk_1 = 0
-        # If Unk1 > 0 ?
-        self.unk_flag = 0
-        self.unk_offset = Vector()
-        # End If
+        # Physics Shapes
+        self.shape_count = 0
+        self.shapes = []
 
         self.unk_2 = 0
         self.weight_set_count = 0
@@ -295,7 +315,7 @@ class Model(object):
         # LTB specific
 
         # Model00p specific
-        self.physics = None
+        self.physics = Physics()
 
         
     @property
