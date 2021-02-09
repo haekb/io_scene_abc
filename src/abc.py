@@ -98,8 +98,8 @@ class LOD(object):
         self.texture_index = 0
         self.translucent = 0
         self.cast_shadow = 0
-        self.unk_1 = 0
-        self.unk_2 = 0
+        self.piece_count = 0
+        self.piece_index_list = []
 
     def get_face_vertices(self, face_index):
         return [self.vertices[vertex.vertex_index] for vertex in self.faces[face_index].vertices]
@@ -274,6 +274,33 @@ class PhysicsShape(object):
         self.unk_4 = 0
         # End If
 
+class PhysicsConstraint(object):
+    TYPE_LIMITED_HINGE = 3
+    TYPE_RAGDOLL = 4
+
+    def __init__(self):
+        self.type = 0
+        self.shape_index = 0
+        self.unk_1 = 0
+        self.data = [] # Length: Type 3 == 18, Type 4 == 24
+        self.friction = 0.0
+        # If Type == 3
+        self.unk_2 = 0.0
+        self.unk_3 = 0.0
+        # End If
+
+class PhysicsNodeWeights(object):
+    def __init__(self):
+        self.physics = 0
+        self.velocity_gain = 1.0
+        self.hiearchy_gain = 0.0
+
+class PhysicsWeightSet(object):
+    def __init__(self):
+        self.name = ""
+        self.node_weights = [] #...PhysicsNodeWeights
+
+
 class Physics(object):
     def __init__(self):
         self.vis_node_index = 0
@@ -281,11 +308,13 @@ class Physics(object):
         
         # Physics Shapes
         self.shape_count = 0
-        self.shapes = []
+        self.shapes = [] #...PhysicsShape
 
-        self.unk_2 = 0
+        self.constraint_count = 0
+        self.contraints = [] #...PhysicsConstraint
+
         self.weight_set_count = 0
-        self.weight_sets = [] # Array of name offsets
+        self.weight_sets = [] # ...PhysicsWeightSet
 
 class Model(object):
     def __init__(self):

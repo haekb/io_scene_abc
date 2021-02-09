@@ -392,7 +392,7 @@ struct Mesh {
     LTVector Unk1;
     LTVector Unk4;
     uchar WeightInfo[4];
-    int Unk3;
+    uchar NodeIndexes[4];
 };
 
 struct MeshHeader {

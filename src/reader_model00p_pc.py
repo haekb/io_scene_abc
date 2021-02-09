@@ -227,45 +227,42 @@ class PCModel00PackedReader(object):
 
         return lod
 
-    def _read_sub_lod(self, f):
+    def _read_lod(self, f):
         lod = LOD()
 
-        lod.distance = unpack('f', f)[0]
-        lod.texture_index = unpack('b', f)[0]
-        lod.translucent = unpack('b', f)[0]
-        lod.cast_shadow = unpack('b', f)[0]
-        lod.unk_1 = unpack('I', f)[0]
+        lod.distance = self._unpack('f', f)[0]
+        lod.texture_index = self._unpack('b', f)[0]
+        lod.translucent = self._unpack('b', f)[0]
+        lod.cast_shadow = self._unpack('b', f)[0]
+        lod.piece_count = self._unpack('I', f)[0]
+
+        lod.piece_index_list = [ self._unpack('I', f)[0] for _ in range(lod.piece_count) ]
         
         return lod
 
-    def _read_lod(self, f):
-        lod = self._read_sub_lod(f)
-        lod.unk_2 = unpack('I', f)[0]
-
-        return lod
-
-    def _read_piece(self, f):
+    def _read_lod_group(self, f):
         piece = Piece()
-
-        debug_ftell = f.tell()
-
-        has_lods = unpack('I', f)[0]
-
-        # Not quite sure this is right...
-        if has_lods == 0:
-            return piece
 
         name_offset = unpack('I', f)[0]
         piece.name = self._get_string_from_table(name_offset)
         lod_count = unpack('I', f)[0]
 
-        piece.lods = [ self._read_lod(f) ]
-        
-        for _ in range(lod_count - 1):
-            piece.lods.append(self._read_sub_lod(f))
+        piece.lods = [ self._read_lod(f) for _ in range(lod_count) ]
+
+        return piece
+
+    def _read_pieces(self, f):
+        debug_ftell = f.tell()
+
+        lod_group_count = unpack('I', f)[0]
+
+        # Not quite sure this is right...
+        if lod_group_count == 0:
+            return []
+
+        pieces = [ self._read_lod_group(f) for _ in range(lod_group_count) ]
 
         # Unknown values!
-
         unk_1 = unpack('I', f)[0]
         unk_2 = unpack('I', f)[0]
         unk_3 = unpack('I', f)[0]
@@ -275,7 +272,7 @@ class PCModel00PackedReader(object):
 
         # End unknown values
 
-        piece.material_index = unpack('I', f)[0]
+        pieces[0].material_index = unpack('I', f)[0]
 
         debug_ftell = f.tell()
 
@@ -287,9 +284,9 @@ class PCModel00PackedReader(object):
         #for _ in range( int(data_length / 64) ):
         #    piece.lods[0] = self._read_mesh_data(piece.lods[0], f) 
 
-        piece.lods[0] = self._read_mesh_data(f)
+        pieces[0].lods[0] = self._read_mesh_data(f)
 
-        return piece
+        return pieces
 
     def _read_node(self, f):
         node = Node()
@@ -505,6 +502,46 @@ class PCModel00PackedReader(object):
 
         return shape
 
+    def _read_physics_constraint(self, f):
+        constraint = PhysicsConstraint()
+
+        constraint.type = self._unpack('I', f)[0]
+        constraint.shape_index = self._unpack('I', f)[0]
+        constraint.unk_1 = self._unpack('I', f)[0]
+        
+        data_length = 24
+
+        if constraint.type == 3:
+            data_length = 18
+
+        constraint.data = [ self._unpack('f', f)[0] for _ in range(data_length) ]
+
+        constraint.friction = self._unpack('I', f)[0]
+        
+        if constraint.type == 3:
+            constraint.unk_2 = self._unpack('I', f)[0]
+            constraint.unk_3 = self._unpack('I', f)[0]
+
+        return constraint
+
+    def _read_physics_node_weight(self, f):
+        node_set = PhysicsNodeWeights()
+        node_set.physics = self._unpack('b', f)[0]
+        node_set.velocity_gain = self._unpack('f', f)[0]
+        node_set.hiearchy_gain = self._unpack('f', f)[0]
+        return node_set
+        
+
+    def _read_physics_weights(self, shape_count, f):
+        weight_set = PhysicsWeightSet()
+
+        name_offset = self._unpack('I', f)[0]
+        weight_set.name = self._get_string_from_table(name_offset)
+
+        weight_set.node_weights = [ self._read_physics_node_weight(f) for _ in range(shape_count) ]
+
+        return weight_set
+
     def _read_physics(self, f):
         physics = Physics()
         physics.vis_node_index = self._unpack('I', f)[0]
@@ -513,11 +550,11 @@ class PCModel00PackedReader(object):
 
         physics.shapes = [ self._read_physics_shape(f) for _ in range(physics.shape_count) ]
 
-        return physics
+        physics.constraint_count = self._unpack('I', f)[0]
+        physics.contraints = [ self._read_physics_constraint(f) for _ in range(physics.constraint_count) ]
 
-        physics.unk_2 = self._unpack('I', f)[0]
         physics.weight_set_count = self._unpack('I', f)[0]
-        physics.weight_sets = [self._unpack('I', f)[0] for _ in range(physics.weight_set_count)]
+        physics.weight_sets = [ self._read_physics_weights(physics.shape_count, f) for _ in range(physics.weight_set_count)]
 
         return physics
         
@@ -904,7 +941,7 @@ class PCModel00PackedReader(object):
             # 
             # Pieces
             #
-            model.pieces = [self._read_piece(f) for _ in range(piece_count)]
+            model.pieces = self._read_pieces(f) #[self._read_pieces(f) for _ in range(piece_count)]
 
             return model
 #old
