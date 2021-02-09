@@ -379,7 +379,7 @@ struct Unk2 {
     int PieceCount;
     int Unk5; // LOD Related?
     int Unk6;
-    int Unk7;
+    int LODCount;
     if (PieceCount == 0) {
         LTString MeshFile;
     }
@@ -469,3 +469,6 @@ PhysicsHeader PhysicsInfo;
 LODGroupHeader lodGroupHeader;
 Unk2 unk2;
 MeshHeader meshHeader;
+FSkip(420); // DeltaForce
+MeshHeader meshHeader2;
+// LOD info at the bottom, and then mesh data continues per piece

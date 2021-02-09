@@ -273,18 +273,12 @@ class PCModel00PackedReader(object):
         # End unknown values
 
         pieces[0].material_index = unpack('I', f)[0]
-
-        debug_ftell = f.tell()
-
-        #data_length = unpack('I', f)[0]
-        #index_list_length = unpack('I', f)[0]
-
-        #print("Face Count ", data_length / 64)
-
-        #for _ in range( int(data_length / 64) ):
-        #    piece.lods[0] = self._read_mesh_data(piece.lods[0], f) 
-
         pieces[0].lods[0] = self._read_mesh_data(f)
+
+        # DeltaForce has extra data below!
+        # f.seek(420, 1)
+        # pieces[1].material_index = unpack('I', f)[0]
+        # pieces[1].lods[0] = self._read_mesh_data(f)
 
         return pieces
 
