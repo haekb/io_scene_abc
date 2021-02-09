@@ -47,6 +47,29 @@ class PCModel00PackedReader(object):
         # Temp until I can figure out how animations work!
         self._read_animations = False
 
+    # Helper class for reading in mesh data
+    # TODO: Need to clean up and move into a model class whenever I get to that.
+    class MeshData(object):
+        def __init__(self):
+            self.vertex = Vector()
+            self.normal = Vector()
+            self.uvs = Vector()
+            self.unk_1 = Vector()
+            self.unk_2 = Vector()
+            self.weight_info = []
+            self.unk_3 = -1
+
+        def read(self, reader, f):
+            self.vertex = reader._read_vector(f)
+            self.normal = reader._read_vector(f)
+            self.uvs.xy = reader._unpack('2f', f)
+            self.unk_1 = reader._read_vector(f)
+            self.unk_2 = reader._read_vector(f)
+            self.weight_info = reader._unpack('4b', f)
+            self.unk_3 = reader._unpack('I', f)[0]
+
+            return self
+
     #
     # Wrapper around .io.unpack that can eventually handle big-endian reads.
     #
@@ -133,33 +156,74 @@ class PCModel00PackedReader(object):
         f.seek(4, 1)
         return lod
 
-    def _read_mesh_data(self, lod, f):
+    # def _read_mesh_data(self, lod, f):
 
-        vertex = Vertex()
-        face = Face()
-        face_vertex = FaceVertex()
+    #     vertex = Vertex()
+    #     face = Face()
+    #     face_vertex = FaceVertex()
 
-        vertex.location = self._read_vector(f)
-        vertex.normal = self._read_vector(f)
+    #     vertex.location = self._read_vector(f)
+    #     vertex.normal = self._read_vector(f)
 
-        face_vertex.texcoord.xy = self._unpack('2f', f)
+    #     face_vertex.texcoord.xy = self._unpack('2f', f)
 
-        lod.vertices.append(vertex)
-        #lod.faces.append(face_vertex)
+    #     lod.vertices.append(vertex)
+    #     #lod.faces.append(face_vertex)
 
-        # Test to see what these unk vectors could be!
-        # vertex.location = self._read_vector(f)
-        # lod.vertices.append(vertex)
-        # vertex.location = self._read_vector(f)
-        # lod.vertices.append(vertex)
-        unk_vec_1 = self._read_vector(f)
-        unk_vec_2 = self._read_vector(f)
+    #     # Test to see what these unk vectors could be!
+    #     # vertex.location = self._read_vector(f)
+    #     # lod.vertices.append(vertex)
+    #     # vertex.location = self._read_vector(f)
+    #     # lod.vertices.append(vertex)
+    #     unk_vec_1 = self._read_vector(f)
+    #     unk_vec_2 = self._read_vector(f)
 
 
         
 
-        weight_info = self._unpack('4b', f)
-        unk_1 = self._unpack('I', f)[0]
+    #     weight_info = self._unpack('4b', f)
+    #     unk_1 = self._unpack('I', f)[0]
+
+    #     return lod
+
+
+
+    def _read_mesh_data(self, f):
+        data_length = self._unpack('I', f)[0]
+        index_list_length = self._unpack('I', f)[0]
+
+        print("Face Count ", data_length / 64)
+
+        # Data Length / Structure Size
+        mesh_data_list = [ self.MeshData().read(self, f) for _ in range( int(data_length / 64) ) ]
+        index_list = [ self._unpack('H', f)[0] for _ in range( int(index_list_length / 2) ) ]
+
+        # Holds 3 face vertices
+        face = Face()
+        lod = LOD()
+
+        real_index = 0
+
+        for index in index_list:
+            mesh_data = mesh_data_list[index]
+            
+            vertex = Vertex()
+            vertex.location = mesh_data.vertex
+            vertex.normal = mesh_data.normal
+            lod.vertices.append(vertex)
+
+            face_vertex = FaceVertex()
+            face_vertex.texcoord = mesh_data.uvs
+            face_vertex.vertex_index = real_index
+
+            face.vertices.append(face_vertex)
+
+            if len(face.vertices) == 3:
+                lod.faces.append(face)
+                face = Face()
+
+            real_index += 1
+        # End For
 
         return lod
 
@@ -215,13 +279,15 @@ class PCModel00PackedReader(object):
 
         debug_ftell = f.tell()
 
-        data_length = unpack('I', f)[0]
-        index_times_two = unpack('I', f)[0]
+        #data_length = unpack('I', f)[0]
+        #index_list_length = unpack('I', f)[0]
 
-        print("Face Count ", data_length / 64)
+        #print("Face Count ", data_length / 64)
 
-        for _ in range( int(data_length / 64) ):
-            piece.lods[0] = self._read_mesh_data(piece.lods[0], f) 
+        #for _ in range( int(data_length / 64) ):
+        #    piece.lods[0] = self._read_mesh_data(piece.lods[0], f) 
+
+        piece.lods[0] = self._read_mesh_data(f)
 
         return piece
 
@@ -464,9 +530,6 @@ class PCModel00PackedReader(object):
         track_2_size = self._unpack('H', f)[0]
 
         total_track_size = track_1_size + track_2_size
-
-        # Safety, this shouldn't happen!
-        assert(total_track_size != 0)
 
         # By default start on track 1
         current_track = 1

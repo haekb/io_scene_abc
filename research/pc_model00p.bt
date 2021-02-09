@@ -352,8 +352,9 @@ struct MeshHeader {
     // DataLength / 64 = MeshData
     int DataLength;
     // DataCount / 2 = tri-fs count
-    int DataCount;
+    int IndexListLength;
     Mesh MeshData[DataLength/64];
+    short IndexList[IndexListLength/2]; // DataCount in bytes
 };
 
 struct ContainsGeometry {
@@ -383,11 +384,11 @@ AnimationHeader animHdr;
 
 if (hdr.AnimationDataLength > 0) {
     // CUBE
-    //AnimSchema skip[8]; // Replace this with the schema length
+    AnimSchema skip[8]; // Replace this with the schema length
     // DELTA
     //AnimSchema skip[652]; // delta 652
     // ROPE
-    AnimSchema skip[32];
+    //AnimSchema skip[32];
     // Condemned Default00p
     //AnimSchema skip[8];
 } else {
