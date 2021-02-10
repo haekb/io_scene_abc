@@ -427,6 +427,27 @@ struct CondemnedUnk {
     int Unk;
 };
 
+// Related to Deformers
+struct MeshInfo {
+    int IndexListStart;
+    int IndexListCount;
+    int Unk[3];
+    int TriangleCount;
+    int MaterialIndex;
+    int InfluenceCount;
+    int Unk;
+    char NodeIndexes[InfluenceCount];
+};
+
+struct AfterMesh {
+    int Unk1[4];
+    short ShortData[24];
+    int Unk3[2];
+    // Mesh Info?
+    int MeshInfoCount;
+    MeshInfo Info[MeshInfoCount] <optimize=false>;
+};
+
 Header hdr;
 
 // String database, we need to skip it for now
@@ -437,9 +458,9 @@ AnimationHeader animHdr;
 
 if (hdr.AnimationDataLength > 0) {
     // CUBE
-    //AnimSchema skip[8]; // Replace this with the schema length
+    AnimSchema skip[12]; // Replace this with the schema length
     // DELTA
-    AnimSchema skip[652]; // delta 652
+    //AnimSchema skip[652]; // delta 652
     // ROPE
     //AnimSchema skip[32];
     // Condemned Default00p
@@ -469,6 +490,7 @@ PhysicsHeader PhysicsInfo;
 LODGroupHeader lodGroupHeader;
 Unk2 unk2;
 MeshHeader meshHeader;
-FSkip(420); // DeltaForce
-MeshHeader meshHeader2;
+AfterMesh Debug;
+//FSkip(420); // DeltaForce
+//MeshHeader meshHeader2;
 // LOD info at the bottom, and then mesh data continues per piece
