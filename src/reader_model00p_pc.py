@@ -315,8 +315,10 @@ class PCModel00PackedReader(object):
                 # This may not entirely be correct, as IndexList / 3 sometimes does not equal triangle counts!
                 for index in range(info.triangle_count * 3):
                     face_vertex = FaceVertex()
-                    face_vertex.texcoord = mesh_data.uvs
+                    
                     face_vertex.vertex_index = index_list[running_index_list_index]
+
+                    face_vertex.texcoord = mesh_data_list[face_vertex.vertex_index].uvs
 
                     face_vertex.vertex_index -= info.index_list_start
 
