@@ -391,8 +391,10 @@ struct Mesh {
     LTUV UVs;
     LTVector Unk1;
     LTVector Unk4;
-    uchar WeightInfo[4];
-    uchar NodeIndexes[4];
+    uchar WeightInfo[3];
+    uchar Padding;
+    uchar NodeIndexes[3];
+    uchar Padding2;
 };
 
 struct MeshHeader {
@@ -458,7 +460,7 @@ AnimationHeader animHdr;
 
 if (hdr.AnimationDataLength > 0) {
     // CUBE
-    AnimSchema skip[12]; // Replace this with the schema length
+    AnimSchema skip[16]; // Replace this with the schema length
     // DELTA
     //AnimSchema skip[652]; // delta 652
     // ROPE

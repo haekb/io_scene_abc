@@ -57,7 +57,7 @@ class PCModel00PackedReader(object):
             self.unk_1 = Vector()
             self.unk_2 = Vector()
             self.weight_info = []
-            self.unk_3 = -1
+            self.node_indexes = []
 
         def read(self, reader, f):
             self.vertex = reader._read_vector(f)
@@ -65,8 +65,43 @@ class PCModel00PackedReader(object):
             self.uvs.xy = reader._unpack('2f', f)
             self.unk_1 = reader._read_vector(f)
             self.unk_2 = reader._read_vector(f)
-            self.weight_info = reader._unpack('4b', f)
+            self.weight_info = reader._unpack('3B', f)
+            padding = reader._unpack('B', f)[0]
+            self.node_indexes = reader._unpack('3B', f)
+            padding = reader._unpack('B', f)[0]
+
+            # Reverse the weight info, I'm not sure why it's flipped...
+            #self.weight_info.reverse()
+            # It's a tuple actually...
+            self.weight_info = tuple(reversed(self.weight_info))
+
+            return self
+
+    # Another helper class, this should be shoved into whatever I refactor into FEAR's model.
+    class MeshInfo(object):
+        def __init__(self):
+            self.index_list_start = 0
+            self.index_list_count = 0
+            self.unk_1 = 0
+            self.unk_2 = 0
+            self.unk_3 = 0
+            self.triangle_count = 0
+            self.material_index = 0
+            self.influence_count = 0
+            self.unk_4 = 0
+            self.influence_node_indexes = []
+
+        def read(self, reader, f):
+            self.index_list_start = reader._unpack('I', f)[0]
+            self.index_list_count = reader._unpack('I', f)[0]
+            self.unk_1 = reader._unpack('I', f)[0]
+            self.unk_2 = reader._unpack('I', f)[0]
             self.unk_3 = reader._unpack('I', f)[0]
+            self.triangle_count = reader._unpack('I', f)[0]
+            self.material_index = reader._unpack('I', f)[0]
+            self.influence_count = reader._unpack('I', f)[0]
+            self.unk_4 = reader._unpack('I', f)[0]
+            self.influence_node_indexes = [ reader._unpack('b', f)[0] for _ in range(self.influence_count) ]
 
             return self
 
@@ -188,7 +223,11 @@ class PCModel00PackedReader(object):
 
 
 
-    def _read_mesh_data(self, f):
+    def _read_mesh_data(self, pieces, f):
+        debug_ftell = f.tell()
+
+        texture_count = self._unpack('I', f)[0]
+
         data_length = self._unpack('I', f)[0]
         index_list_length = self._unpack('I', f)[0]
 
@@ -197,6 +236,105 @@ class PCModel00PackedReader(object):
         # Data Length / Structure Size
         mesh_data_list = [ self.MeshData().read(self, f) for _ in range( int(data_length / 64) ) ]
         index_list = [ self._unpack('H', f)[0] for _ in range( int(index_list_length / 2) ) ]
+
+        debug_ftell = f.tell()
+
+        # Unknown after mesh data
+        # These seem to be the same, so asserts are here for debug.
+        unk_1 = self._unpack('I', f)[0]
+        assert(unk_1 == 1)
+        unk_2 = self._unpack('I', f)[0]
+        assert(unk_2 == 64)
+        unk_3 = self._unpack('I', f)[0]
+        assert(unk_3 == 0)
+        unk_4 = self._unpack('I', f)[0]
+        assert(unk_4 == 2)
+
+        # 24 shorts, might have something to do with unk_2?
+        unk_short_list = self._unpack('24H', f)
+
+        # More unknown data that seems to be the same
+        unk_5 = self._unpack('I', f)[0]
+        assert(unk_5 == 255)
+        unk_6 = self._unpack('I', f)[0]
+        assert(unk_6 == 17)
+
+        # Okay here's the mesh info!
+        mesh_info_count = self._unpack('I', f)[0]
+        mesh_info = [ self.MeshInfo().read(self, f) for _ in range(mesh_info_count) ]
+        # End
+
+
+        # Some running totals
+        running_lod_index = 0
+        running_index_list_index = 0
+        for index in range(len(pieces)):
+            piece = pieces[index]
+            
+            for lod_index in range(len(piece.lods)):
+                lod = piece.lods[lod_index]
+                info = mesh_info[running_lod_index]
+
+                
+
+
+
+                # Set the material index (for the main lod only!)
+                if lod_index == 0:
+                    piece.material_index = info.material_index
+
+                for vertex_index in range(info.index_list_start, info.index_list_start + info.index_list_count):
+                    mesh_data = mesh_data_list[ vertex_index ] 
+                    vertex = Vertex()
+                    vertex.location = mesh_data.vertex
+                    vertex.normal = mesh_data.normal
+
+                    # Weight info kinda sucks, if there's only one weight it's on position 3...
+                    # Why? I don't know, I'm hoping I'm reading this data slightly wrong. 
+                    #if mesh_data.weight_info[2] == 255:
+                    #    weight = Weight()
+                    index = 0
+                    for bias in mesh_data.weight_info:
+                        if bias == 0:
+                            continue
+                        
+                        weight = Weight()
+                        weight.bias = bias / 255
+                        weight.node_index = info.influence_node_indexes[ mesh_data.node_indexes[index] ]
+
+                        vertex.weights.append(weight)
+
+                        index += 1
+
+                    lod.vertices.append(vertex)
+
+                # Holds 3 face vertices
+                face = Face()
+
+                # Tri count * 3, because we're looping through the index list for the length of tri count.
+                # This may not entirely be correct, as IndexList / 3 sometimes does not equal triangle counts!
+                for index in range(info.triangle_count * 3):
+                    face_vertex = FaceVertex()
+                    face_vertex.texcoord = mesh_data.uvs
+                    face_vertex.vertex_index = index_list[running_index_list_index]
+
+                    face_vertex.vertex_index -= info.index_list_start
+
+                    face.vertices.append(face_vertex)
+
+                    if len(face.vertices) == 3:
+                        lod.faces.append(face)
+                        face = Face()
+
+                    running_index_list_index += 1
+
+
+                piece.lods[lod_index] = lod
+                running_lod_index += 1
+
+        return pieces
+
+        # OLD
 
         # Holds 3 face vertices
         face = Face()
@@ -272,13 +410,8 @@ class PCModel00PackedReader(object):
 
         # End unknown values
 
-        pieces[0].material_index = unpack('I', f)[0]
-        pieces[0].lods[0] = self._read_mesh_data(f)
-
-        # DeltaForce has extra data below!
-        # f.seek(420, 1)
-        # pieces[1].material_index = unpack('I', f)[0]
-        # pieces[1].lods[0] = self._read_mesh_data(f)
+        # Read the mesh data, and process the pieces
+        pieces = self._read_mesh_data(pieces, f)
 
         return pieces
 
@@ -788,7 +921,6 @@ class PCModel00PackedReader(object):
             # Skip ahead to keyframes!
             f.seek(animation_data_length , 1)
 
-            #model.anim_bindings = [self._read_anim_binding(f) for _ in range(animation_binding_count)]
             anim_infos = [self._read_anim_info(f) for _ in range(animation_count)] 
 
             weight_set_count = self._unpack('I', f)[0]
