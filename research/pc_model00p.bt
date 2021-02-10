@@ -397,14 +397,33 @@ struct Mesh {
     uchar Padding2;
 };
 
-struct MeshHeader {
+struct Meshv34 {
+    LTVector Vertex;
+    LTVector Normals;
+    LTUV UVs;
+    LTVector Unk1;
+    LTVector Unk4;
+    uchar Colour[4];
+    uchar WeightInfo[3];
+    uchar Padding;
+    uchar NodeIndexes[3];
+    uchar Padding2;
+};
+
+struct MeshHeader (int Version) {
     int TextureCount;
     
     // DataLength / 64 = MeshData
     int DataLength;
     // DataCount / 2 = tri-fs count
     int IndexListLength;
-    Mesh MeshData[DataLength/64];
+
+    if (Version == 34) {
+        Meshv34 MeshData[DataLength/68];
+    } else {
+        Mesh MeshData[DataLength/64];
+    }   
+
     short IndexList[IndexListLength/2]; // DataCount in bytes
 };
 
@@ -436,15 +455,17 @@ struct MeshInfo {
     int Unk[3];
     int TriangleCount;
     int MaterialIndex;
-    int InfluenceCount;
+    short InfluenceCount;
     int Unk;
     char NodeIndexes[InfluenceCount];
 };
 
 struct AfterMesh {
-    int Unk1[4];
-    short ShortData[24];
-    int Unk3[2];
+    int Unk;
+    int ShortDataCount;
+    int Unk3;
+    int DataSize; // Maybe?
+    short ShortData[ShortDataCount / 2];
     // Mesh Info?
     int MeshInfoCount;
     MeshInfo Info[MeshInfoCount] <optimize=false>;
@@ -460,15 +481,17 @@ AnimationHeader animHdr;
 
 if (hdr.AnimationDataLength > 0) {
     // CUBE
-    AnimSchema skip[16]; // Replace this with the schema length
+    //AnimSchema skip[16]; // Replace this with the schema length
     // DELTA
     //AnimSchema skip[652]; // delta 652
     // ROPE
     //AnimSchema skip[32];
     // Condemned Default00p
-    //AnimSchema skip[8];
+    AnimSchema skip[8];
 } else {
-    AnimSchema skip[4];
+    //AnimSchema skip[4];
+    // Condemned, empty is 8?
+    AnimSchema skip[8];
 }
 AnimData skip2[hdr.AnimationDataLength];
 //Animation Anim(hdr.NodeCount, animHdr)[hdr.AnimationCount] <optimize=false>;
@@ -479,11 +502,10 @@ AnimationWeightSetHeader animWeightSetHeader(hdr.NodeCount);
 SocketHeader socketHeader;
 
 if (hdr.Version == 34) {
-    CondemnedUnk unk;
-}
-
+    CondemnedUnk Unk;
+} else {
 ChildModelHeader childModels;
-
+}
 ContainsGeometry hasGeometry;
 // Geometry related
 PhysicsHeader PhysicsInfo;
@@ -491,7 +513,7 @@ PhysicsHeader PhysicsInfo;
 
 LODGroupHeader lodGroupHeader;
 Unk2 unk2;
-MeshHeader meshHeader;
+MeshHeader meshHeader(hdr.Version);
 AfterMesh Debug;
 //FSkip(420); // DeltaForce
 //MeshHeader meshHeader2;
