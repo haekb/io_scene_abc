@@ -269,6 +269,12 @@ struct ChildModelHeader {
     ChildModel ChildModels[ChildModelCount - 1] <optimize=false>;
 };
 
+struct ChildModelHeaderv34 {
+    int ChildModelCount;
+    // Can't find a v34 model with child models, so this is just a guess!
+    ChildModel ChildModels[ChildModelCount] <optimize=false>;
+};
+
 struct NodeWeight {
     char Physics;
     // Differences from 1.0/0.0?
@@ -444,10 +450,6 @@ struct SocketHeader {
     Socket Sockets[SocketCount] <optimize=false>;
 };
 
-struct CondemnedUnk {
-    int Unk;
-};
-
 // Related to Deformers
 struct MeshInfo {
     int IndexListStart;
@@ -463,8 +465,6 @@ struct MeshInfo {
 struct AfterMesh {
     int Unk;
     int ShortDataCount;
-    int Unk3;
-    int DataSize; // Maybe?
     short ShortData[ShortDataCount / 2];
     // Mesh Info?
     int MeshInfoCount;
@@ -481,13 +481,13 @@ AnimationHeader animHdr;
 
 if (hdr.AnimationDataLength > 0) {
     // CUBE
-    //AnimSchema skip[16]; // Replace this with the schema length
+    AnimSchema skip[16]; // Replace this with the schema length
     // DELTA
     //AnimSchema skip[652]; // delta 652
     // ROPE
     //AnimSchema skip[32];
     // Condemned Default00p
-    AnimSchema skip[8];
+    //AnimSchema skip[8];
 } else {
     //AnimSchema skip[4];
     // Condemned, empty is 8?
@@ -502,9 +502,9 @@ AnimationWeightSetHeader animWeightSetHeader(hdr.NodeCount);
 SocketHeader socketHeader;
 
 if (hdr.Version == 34) {
-    CondemnedUnk Unk;
+    ChildModelHeaderv34 childModels;
 } else {
-ChildModelHeader childModels;
+    ChildModelHeader childModels;
 }
 ContainsGeometry hasGeometry;
 // Geometry related

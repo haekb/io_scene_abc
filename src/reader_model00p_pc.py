@@ -58,6 +58,7 @@ class PCModel00PackedReader(object):
             self.unk_2 = Vector()
             self.weight_info = []
             self.node_indexes = []
+            self.colour = []
 
         def read(self, reader, f):
             self.vertex = reader._read_vector(f)
@@ -65,14 +66,16 @@ class PCModel00PackedReader(object):
             self.uvs.xy = reader._unpack('2f', f)
             self.unk_1 = reader._read_vector(f)
             self.unk_2 = reader._read_vector(f)
+
+            if reader.version == 34:
+                self.colour = reader._unpack('4B', f)
+
             self.weight_info = reader._unpack('3B', f)
             padding = reader._unpack('B', f)[0]
             self.node_indexes = reader._unpack('3B', f)
             padding = reader._unpack('B', f)[0]
 
             # Reverse the weight info, I'm not sure why it's flipped...
-            #self.weight_info.reverse()
-            # It's a tuple actually...
             self.weight_info = tuple(reversed(self.weight_info))
 
             return self
@@ -186,43 +189,6 @@ class PCModel00PackedReader(object):
         face.vertices = [self._read_face_vertex(f) for _ in range(3)]
         return face
 
-    def _read_null_mesh(self, lod, f):
-        # No data here but a filler int!
-        f.seek(4, 1)
-        return lod
-
-    # def _read_mesh_data(self, lod, f):
-
-    #     vertex = Vertex()
-    #     face = Face()
-    #     face_vertex = FaceVertex()
-
-    #     vertex.location = self._read_vector(f)
-    #     vertex.normal = self._read_vector(f)
-
-    #     face_vertex.texcoord.xy = self._unpack('2f', f)
-
-    #     lod.vertices.append(vertex)
-    #     #lod.faces.append(face_vertex)
-
-    #     # Test to see what these unk vectors could be!
-    #     # vertex.location = self._read_vector(f)
-    #     # lod.vertices.append(vertex)
-    #     # vertex.location = self._read_vector(f)
-    #     # lod.vertices.append(vertex)
-    #     unk_vec_1 = self._read_vector(f)
-    #     unk_vec_2 = self._read_vector(f)
-
-
-        
-
-    #     weight_info = self._unpack('4b', f)
-    #     unk_1 = self._unpack('I', f)[0]
-
-    #     return lod
-
-
-
     def _read_mesh_data(self, pieces, f):
         debug_ftell = f.tell()
 
@@ -231,10 +197,15 @@ class PCModel00PackedReader(object):
         data_length = self._unpack('I', f)[0]
         index_list_length = self._unpack('I', f)[0]
 
-        print("Face Count ", data_length / 64)
+        print("Mesh Data Triangle Count: ", data_length / 64)
+
+        # Total size of the MeshData structure
+        mesh_data_size = 64
+        if self.version == 34:
+            mesh_data_size = 68
 
         # Data Length / Structure Size
-        mesh_data_list = [ self.MeshData().read(self, f) for _ in range( int(data_length / 64) ) ]
+        mesh_data_list = [ self.MeshData().read(self, f) for _ in range( int(data_length / mesh_data_size) ) ]
         index_list = [ self._unpack('H', f)[0] for _ in range( int(index_list_length / 2) ) ]
 
         debug_ftell = f.tell()
@@ -243,27 +214,15 @@ class PCModel00PackedReader(object):
         # These seem to be the same, so asserts are here for debug.
         unk_1 = self._unpack('I', f)[0]
         assert(unk_1 == 1)
-        unk_2 = self._unpack('I', f)[0]
-        assert(unk_2 == 64)
-        unk_3 = self._unpack('I', f)[0]
-        assert(unk_3 == 0)
-        unk_4 = self._unpack('I', f)[0]
-        assert(unk_4 == 2)
+        short_count = self._unpack('I', f)[0]
 
-        # 24 shorts, might have something to do with unk_2?
-        unk_short_list = self._unpack('24H', f)
-
-        # More unknown data that seems to be the same
-        unk_5 = self._unpack('I', f)[0]
-        assert(unk_5 == 255)
-        unk_6 = self._unpack('I', f)[0]
-        assert(unk_6 == 17)
+        # Not sure what this is, but it I can safely ignore it for now.
+        unk_short_list = [ self._unpack('H', f)[0] for _ in range( int(short_count / 2) ) ]
 
         # Okay here's the mesh info!
         mesh_info_count = self._unpack('I', f)[0]
         mesh_info = [ self.MeshInfo().read(self, f) for _ in range(mesh_info_count) ]
         # End
-
 
         # Some running totals
         running_lod_index = 0
@@ -274,10 +233,6 @@ class PCModel00PackedReader(object):
             for lod_index in range(len(piece.lods)):
                 lod = piece.lods[lod_index]
                 info = mesh_info[running_lod_index]
-
-                
-
-
 
                 # Set the material index (for the main lod only!)
                 if lod_index == 0:
@@ -335,37 +290,6 @@ class PCModel00PackedReader(object):
                 running_lod_index += 1
 
         return pieces
-
-        # OLD
-
-        # Holds 3 face vertices
-        face = Face()
-        lod = LOD()
-
-        real_index = 0
-
-        for index in index_list:
-            mesh_data = mesh_data_list[index]
-            
-            vertex = Vertex()
-            vertex.location = mesh_data.vertex
-            vertex.normal = mesh_data.normal
-            lod.vertices.append(vertex)
-
-            face_vertex = FaceVertex()
-            face_vertex.texcoord = mesh_data.uvs
-            face_vertex.vertex_index = real_index
-
-            face.vertices.append(face_vertex)
-
-            if len(face.vertices) == 3:
-                lod.faces.append(face)
-                face = Face()
-
-            real_index += 1
-        # End For
-
-        return lod
 
     def _read_lod(self, f):
         lod = LOD()
@@ -1050,6 +974,11 @@ class PCModel00PackedReader(object):
             # Child Models
             # 
             child_model_count = self._unpack('I', f)[0]
+
+            # In v34 they reduced the count by 1. (Before child model count use to include itself!)
+            if self.version == 34:
+                child_model_count += 1
+
             model.child_models = [self._read_child_model(f) for _ in range(child_model_count - 1)]
 
             debug_ftell = f.tell()
