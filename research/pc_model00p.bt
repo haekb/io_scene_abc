@@ -44,6 +44,11 @@ struct LTMatrix {
 
 struct Header {
     char Format[4];
+    
+    if (Format == "LDOM") {
+        BigEndian();
+    }
+
     int Version;
     int KeyframeCount;
     int AnimationCount;
@@ -428,6 +433,7 @@ struct MeshHeader (int Version) {
         Meshv34 MeshData[DataLength/68];
     } else {
         Mesh MeshData[DataLength/64];
+        //Meshv34 MeshData[DataLength/68];
     }   
 
     short IndexList[IndexListLength/2]; // DataCount in bytes
@@ -452,20 +458,26 @@ struct SocketHeader {
 
 // Related to Deformers
 struct MeshInfo {
-    int IndexListStart;
-    int IndexListCount;
-    int Unk[3];
+    int MeshDataStart;
+    int MeshDataCount;
+    //int IndexListStart;
+    //int IndexListCount;
+    int MeshDataSize;
+    int IndexListPosition;
+    //int MeshDataPosition; // Maybe?
+    int Unk;
     int TriangleCount;
     int MaterialIndex;
-    short InfluenceCount;
+    int InfluenceCount;
     int Unk;
     char NodeIndexes[InfluenceCount];
 };
 
 struct AfterMesh {
     int Unk;
-    int ShortDataCount;
-    short ShortData[ShortDataCount / 2];
+    int ByteDataCount;
+    //short ShortData[ShortDataCount / 2];
+    uchar ByteList[ByteDataCount];
     // Mesh Info?
     int MeshInfoCount;
     MeshInfo Info[MeshInfoCount] <optimize=false>;
@@ -481,9 +493,9 @@ AnimationHeader animHdr;
 
 if (hdr.AnimationDataLength > 0) {
     // CUBE
-    AnimSchema skip[16]; // Replace this with the schema length
+    //AnimSchema skip[16]; // Replace this with the schema length
     // DELTA
-    //AnimSchema skip[652]; // delta 652
+    AnimSchema skip[652]; // delta 652
     // ROPE
     //AnimSchema skip[32];
     // Condemned Default00p

@@ -50,7 +50,7 @@ class PCModel00PackedReader(object):
     # Helper class for reading in mesh data
     # TODO: Need to clean up and move into a model class whenever I get to that.
     class MeshData(object):
-        def __init__(self):
+        def __init__(self, data_size):
             self.vertex = Vector()
             self.normal = Vector()
             self.uvs = Vector()
@@ -60,6 +60,10 @@ class PCModel00PackedReader(object):
             self.node_indexes = []
             self.colour = []
 
+            # FEAR uses 64, which is mesh data WITHOUT colour info
+            # Condemned uses 68, which includes colour info.
+            self.data_size = data_size
+
         def read(self, reader, f):
             self.vertex = reader._read_vector(f)
             self.normal = reader._read_vector(f)
@@ -67,7 +71,7 @@ class PCModel00PackedReader(object):
             self.unk_1 = reader._read_vector(f)
             self.unk_2 = reader._read_vector(f)
 
-            if reader.version == 34:
+            if self.data_size == 68:
                 self.colour = reader._unpack('4B', f)
 
             self.weight_info = reader._unpack('3B', f)
@@ -85,7 +89,7 @@ class PCModel00PackedReader(object):
         def __init__(self):
             self.index_list_start = 0
             self.index_list_count = 0
-            self.unk_1 = 0
+            self.mesh_data_size = 0
             self.unk_2 = 0
             self.unk_3 = 0
             self.triangle_count = 0
@@ -97,7 +101,7 @@ class PCModel00PackedReader(object):
         def read(self, reader, f):
             self.index_list_start = reader._unpack('I', f)[0]
             self.index_list_count = reader._unpack('I', f)[0]
-            self.unk_1 = reader._unpack('I', f)[0]
+            self.mesh_data_size = reader._unpack('I', f)[0]
             self.unk_2 = reader._unpack('I', f)[0]
             self.unk_3 = reader._unpack('I', f)[0]
             self.triangle_count = reader._unpack('I', f)[0]
@@ -199,29 +203,45 @@ class PCModel00PackedReader(object):
 
         print("Mesh Data Triangle Count: ", data_length / 64)
 
-        # Total size of the MeshData structure
-        mesh_data_size = 64
-        if self.version == 34:
-            mesh_data_size = 68
+        # We need to read the MeshInfo data that's located AFTER the actual mesh data
+        # So skip the mesh data for now...
 
-        # Data Length / Structure Size
-        mesh_data_list = [ self.MeshData().read(self, f) for _ in range( int(data_length / mesh_data_size) ) ]
-        index_list = [ self._unpack('H', f)[0] for _ in range( int(index_list_length / 2) ) ]
+        mesh_data_position = f.tell()
 
-        debug_ftell = f.tell()
+        f.seek(data_length, 1)
+        f.seek(index_list_length, 1)
 
         # Unknown after mesh data
         # These seem to be the same, so asserts are here for debug.
         unk_1 = self._unpack('I', f)[0]
         assert(unk_1 == 1)
-        short_count = self._unpack('I', f)[0]
+
+        byte_list_count = self._unpack('I', f)[0]
 
         # Not sure what this is, but it I can safely ignore it for now.
-        unk_short_list = [ self._unpack('H', f)[0] for _ in range( int(short_count / 2) ) ]
+        unk_byte_list = [ self._unpack('B', f)[0] for _ in range(byte_list_count) ]
 
         # Okay here's the mesh info!
         mesh_info_count = self._unpack('I', f)[0]
         mesh_info = [ self.MeshInfo().read(self, f) for _ in range(mesh_info_count) ]
+
+        mesh_info_position = f.tell()
+
+        # FIXME: I now need to read mesh data per piece instead of all at once now...
+        mesh_data_size = mesh_info[0].mesh_data_size
+
+        # Hop back to the mesh data
+        f.seek(mesh_data_position, 0)
+        
+        # Data Length / Structure Size
+        mesh_data_list = [ self.MeshData(mesh_data_size).read(self, f) for _ in range( int(data_length / mesh_data_size) ) ]
+        index_list = [ self._unpack('H', f)[0] for _ in range( int(index_list_length / 2) ) ]
+
+        debug_ftell = f.tell()
+
+        # Annnnd hope back
+        f.seek(mesh_info_position, 0)
+
         # End
 
         # Some running totals
@@ -307,9 +327,9 @@ class PCModel00PackedReader(object):
     def _read_lod_group(self, f):
         piece = Piece()
 
-        name_offset = unpack('I', f)[0]
+        name_offset = self._unpack('I', f)[0]
         piece.name = self._get_string_from_table(name_offset)
-        lod_count = unpack('I', f)[0]
+        lod_count = self._unpack('I', f)[0]
 
         piece.lods = [ self._read_lod(f) for _ in range(lod_count) ]
 
@@ -318,7 +338,7 @@ class PCModel00PackedReader(object):
     def _read_pieces(self, f):
         debug_ftell = f.tell()
 
-        lod_group_count = unpack('I', f)[0]
+        lod_group_count = self._unpack('I', f)[0]
 
         # Not quite sure this is right...
         if lod_group_count == 0:
@@ -327,12 +347,12 @@ class PCModel00PackedReader(object):
         pieces = [ self._read_lod_group(f) for _ in range(lod_group_count) ]
 
         # Unknown values!
-        unk_1 = unpack('I', f)[0]
-        unk_2 = unpack('I', f)[0]
-        unk_3 = unpack('I', f)[0]
+        unk_1 = self._unpack('I', f)[0]
+        unk_2 = self._unpack('I', f)[0]
+        unk_3 = self._unpack('I', f)[0]
 
-        unk_4 = unpack('I', f)[0]
-        unk_5 = unpack('I', f)[0]
+        unk_4 = self._unpack('I', f)[0]
+        unk_5 = self._unpack('I', f)[0]
 
         # End unknown values
 
@@ -383,7 +403,7 @@ class PCModel00PackedReader(object):
 
         for _ in range(self.node_count):
             # RLE!
-            key_position_count = unpack('I', f)[0]
+            key_position_count = self._unpack('I', f)[0]
 
             compressed_positions = []
             if compression_type == CMP_Relevant or compression_type == CMP_Relevant_Rot16:
@@ -392,7 +412,7 @@ class PCModel00PackedReader(object):
                 compressed_positions = [self._process_compressed_vector(unpack('3h', f)) for _ in range(key_position_count)]
             # End If
 
-            key_rotation_count = unpack('I', f)[0]
+            key_rotation_count = self._unpack('I', f)[0]
 
             compressed_rotations = []
             if compression_type == CMP_Relevant:
@@ -439,8 +459,8 @@ class PCModel00PackedReader(object):
 
     def _read_keyframe(self, f):
         keyframe = Animation.Keyframe()
-        keyframe.time = unpack('I', f)[0]
-        string_offset = unpack('I', f)[0]
+        keyframe.time = self._unpack('I', f)[0]
+        string_offset = self._unpack('I', f)[0]
         keyframe.string = self._get_string_from_table(string_offset)
         return keyframe
 
@@ -448,15 +468,15 @@ class PCModel00PackedReader(object):
         animation = Animation()
         animation.extents = self._read_vector(f)
         animation.name = self._read_string(f)
-        animation.compression_type = unpack('i', f)[0]
-        animation.interpolation_time = unpack('I', f)[0]
-        animation.keyframe_count = unpack('I', f)[0]
+        animation.compression_type = self._unpack('i', f)[0]
+        animation.interpolation_time = self._unpack('I', f)[0]
+        animation.keyframe_count = self._unpack('I', f)[0]
         animation.keyframes = [self._read_keyframe(f) for _ in range(animation.keyframe_count)]
         animation.node_keyframe_transforms = []
 
         if animation.compression_type == CMP_None:
             for _ in range(self.node_count):
-                animation.is_vertex_animation = unpack('b', f)[0]
+                animation.is_vertex_animation = self._unpack('b', f)[0]
 
                 # We don't support vertex animations yet, so alert if we accidentally load some!
                 assert(animation.is_vertex_animation == 0)
@@ -472,7 +492,7 @@ class PCModel00PackedReader(object):
 
     def _read_socket(self, f):
         socket = Socket()
-        socket.node_index = unpack('I', f)[0]
+        socket.node_index = self._unpack('I', f)[0]
 
         name_offset = self._unpack('I', f)[0]
         socket.name = self._get_string_from_table(name_offset)
@@ -520,10 +540,10 @@ class PCModel00PackedReader(object):
 
     def _read_weight_set(self, f):
         weight_set = WeightSet()
-        name_offset = unpack('I', f)[0]
+        name_offset = self._unpack('I', f)[0]
         weight_set.name = self._get_string_from_table(name_offset)
 
-        unk_1 = unpack('I', f)[0]
+        unk_1 = self._unpack('I', f)[0]
         weight_set.node_weights = [unpack('f', f)[0] for _ in range(self.node_count)]
 
         return weight_set
