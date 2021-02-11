@@ -87,10 +87,10 @@ class PCModel00PackedReader(object):
     # Another helper class, this should be shoved into whatever I refactor into FEAR's model.
     class MeshInfo(object):
         def __init__(self):
-            self.index_list_start = 0
-            self.index_list_count = 0
+            self.mesh_data_start = 0
+            self.mesh_data_count = 0
             self.mesh_data_size = 0
-            self.unk_2 = 0
+            self.index_list_position = 0
             self.unk_3 = 0
             self.triangle_count = 0
             self.material_index = 0
@@ -99,10 +99,10 @@ class PCModel00PackedReader(object):
             self.influence_node_indexes = []
 
         def read(self, reader, f):
-            self.index_list_start = reader._unpack('I', f)[0]
-            self.index_list_count = reader._unpack('I', f)[0]
+            self.mesh_data_start = reader._unpack('I', f)[0]
+            self.mesh_data_count = reader._unpack('I', f)[0]
             self.mesh_data_size = reader._unpack('I', f)[0]
-            self.unk_2 = reader._unpack('I', f)[0]
+            self.index_list_position = reader._unpack('I', f)[0]
             self.unk_3 = reader._unpack('I', f)[0]
             self.triangle_count = reader._unpack('I', f)[0]
             self.material_index = reader._unpack('I', f)[0]
@@ -258,7 +258,7 @@ class PCModel00PackedReader(object):
                 if lod_index == 0:
                     piece.material_index = info.material_index
 
-                for vertex_index in range(info.index_list_start, info.index_list_start + info.index_list_count):
+                for vertex_index in range(info.mesh_data_start, info.mesh_data_start + info.mesh_data_count):
                     mesh_data = mesh_data_list[ vertex_index ] 
                     vertex = Vertex()
                     vertex.location = mesh_data.vertex
@@ -295,7 +295,7 @@ class PCModel00PackedReader(object):
 
                     face_vertex.texcoord = mesh_data_list[face_vertex.vertex_index].uvs
 
-                    face_vertex.vertex_index -= info.index_list_start
+                    face_vertex.vertex_index -= info.mesh_data_start
 
                     face.vertices.append(face_vertex)
 
