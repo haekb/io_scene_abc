@@ -15,12 +15,15 @@ from .reader_abc_pc import ABCModelReader
 from .reader_ltb_pc import PCLTBModelReader
 from .reader_ltb_ps2 import PS2LTBModelReader
 
+from .reader_model00p_pc import PCModel00PackedReader
+
 from . import utils
 
 
 class ModelImportOptions(object):
     def __init__(self):
         self.should_merge_duplicate_verts = False
+        self.should_import_vertex_animations = False
         self.should_import_animations = False
         self.should_import_sockets = False
         self.bone_length_min = 0.1
@@ -352,7 +355,7 @@ def import_model(model, options):
                         matrix = parent_matrix @ matrix
                     
                     pose_bone.matrix = matrix
-
+ 
                     for _ in range(0, node.child_count):
                         node_index = node_index + 1
                         node_index = recursively_apply_transform(nodes, node_index, pose_bones, pose_bone.matrix)
@@ -697,3 +700,69 @@ class ImportOperatorLTB(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
     @staticmethod
     def menu_func_import(self, context):
         self.layout.operator(ImportOperatorLTB.bl_idname, text='Lithtech LTB (.ltb)')
+
+
+class ImportOperatorModel00p(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
+    """Loads Jupiter EX model00p files."""
+    bl_idname = 'io_scene_lithtech.model00p_import'  # important since its how bpy.ops.import_test.some_data is constructed
+    bl_label = 'Import Lithtech Model00p'
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+
+    # ImportHelper mixin class uses this
+    filename_ext = ".model00p"
+
+    filter_glob: StringProperty(
+        default="*.model00p",
+        options={'HIDDEN'},
+        maxlen=255,  # Max internal buffer length, longer would be clamped.
+    )
+
+    should_import_animations: BoolProperty(
+        name="Import Animations",
+        description="When checked, animations will be imported as actions.",
+        default=False,
+    )
+
+    def draw(self, context):
+        layout = self.layout
+
+        
+        box = layout.box()
+        box.label(text='Animations')
+        box.row().prop(self, 'should_import_animations')
+
+
+        
+
+    def execute(self, context):
+
+
+        # Load the model
+        model = PCModel00PackedReader().from_file(self.filepath)
+        
+        # Load the model
+        #try:
+        #model = PS2LTBModelReader().from_file(self.filepath)
+        #except Exception as e:
+        #    show_message_box(str(e), "Read Error", 'ERROR')
+        #    return {'CANCELLED'}
+        
+        model.name = os.path.splitext(os.path.basename(self.filepath))[0]
+        image = None
+
+        options = ModelImportOptions()
+        options.should_import_animations = self.should_import_animations
+        options.image = image
+        #try:
+        #    import_model(model, options)
+        #except Exception as e:
+        #    show_message_box(str(e), "Import Error", 'ERROR')
+        #    return {'CANCELLED'}
+        import_model(model, options)
+
+        return {'FINISHED'}
+
+    @staticmethod
+    def menu_func_import(self, context):
+        self.layout.operator(ImportOperatorModel00p.bl_idname, text='Lithtech Model00p (.model00p)')

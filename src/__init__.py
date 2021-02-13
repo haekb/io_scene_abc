@@ -2,7 +2,7 @@ bl_info = {
     'name': 'Lithtech Tools',
     'description': 'Import and export various Lithtech models and animations files.',
     'author': 'Colin Basnett and HeyJake',
-    'version': (1, 1, 0),
+    'version': (1, 2, 0),
     'blender': (2, 80, 0),
     'location': 'File > Import-Export',
     'warning': 'This add-on is under development.',
@@ -47,6 +47,7 @@ from bpy.utils import register_class, unregister_class
 classes = (
     importer.ImportOperatorABC,
     importer.ImportOperatorLTB,
+    importer.ImportOperatorModel00p,
     exporter.ExportOperatorABC,
     exporter.ExportOperatorLTA,
     converter.ConvertPCLTBToLTA,
@@ -60,6 +61,7 @@ def register():
     # Import options
     bpy.types.TOPBAR_MT_file_import.append(importer.ImportOperatorABC.menu_func_import)
     bpy.types.TOPBAR_MT_file_import.append(importer.ImportOperatorLTB.menu_func_import)
+    bpy.types.TOPBAR_MT_file_import.append(importer.ImportOperatorModel00p.menu_func_import)
 
     # Export options
     bpy.types.TOPBAR_MT_file_export.append(exporter.ExportOperatorABC.menu_func_export)
@@ -77,6 +79,7 @@ def unregister():
     # Import options
     bpy.types.TOPBAR_MT_file_import.remove(importer.ImportOperatorABC.menu_func_import)
     bpy.types.TOPBAR_MT_file_import.remove(importer.ImportOperatorLTB.menu_func_import)
+    bpy.types.TOPBAR_MT_file_import.remove(importer.ImportOperatorModel00p.menu_func_import)
 
     # Export options
     bpy.types.TOPBAR_MT_file_export.remove(exporter.ExportOperatorABC.menu_func_export)

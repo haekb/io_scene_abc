@@ -93,6 +93,14 @@ class LOD(object):
         self.s = Vector()
         self.t = Vector()
 
+        # Model00p specific
+        self.distance = 0.0
+        self.texture_index = 0
+        self.translucent = 0
+        self.cast_shadow = 0
+        self.piece_count = 0
+        self.piece_index_list = []
+
     def get_face_vertices(self, face_index):
         return [self.vertices[vertex.vertex_index] for vertex in self.faces[face_index].vertices]
 
@@ -140,6 +148,10 @@ class Node(object):
         # Version 6 specific
         self.md_vert_count = 0
         self.md_vert_list = []
+
+        # Model00p specific
+        self.location = Vector()
+        self.rotation = Quaternion((1, 0, 0, 0))
     
     def __repr__(self):
         return self.name
@@ -194,6 +206,7 @@ class Animation(object):
         self.unknown1 = -1
         self.interpolation_time = 200
         self.keyframes = []
+        self.keyframe_count = 0
         self.node_keyframe_transforms = []
 
         # Version 6 specific
@@ -216,13 +229,92 @@ class AnimBinding(object):
         self.extents = Vector()
         self.origin = Vector()
 
+        # Model00p specific
+        self.radius = 1.0
+        self.rotation = Vector() # Eulers?
+        self.interpolation_time = 200
+
+        self.animation_header_index = -1
+        self.data_position = -1
+        self.is_compressed = -1 # Location compression only! Rotation data is always compressed.
+        
+class AnimInfo(object):
+    def __init__(self):
+        self.animation = Animation()
+        self.binding = AnimBinding()
 
 class ChildModel(object):
     def __init__(self):
         self.name = ''
         self.build_number = 0
         self.transforms = []
+#
+# Model00p+ specific
+#
+class PhysicsShape(object):
+    def __init__(self):
+        self.index = 0
+        self.offset = Vector()
+        self.orientation = Quaternion()
+        self.cor = 0.0
+        self.friction = 0.0
+        self.collision_group = 0
+        self.node_index = 0
+        self.mass = 0.0
+        self.density = 0.0 # Scaled
+        self.radius = 0.0
 
+        # Capsule specific
+        # If Orientation.w != 0.0
+        self.unk_1 = 0
+        self.length_pt1 = 0.0
+        self.unk_2 = 0
+        self.unk_3 = 0
+        self.length_pt2 = 0.0
+        self.unk_4 = 0
+        # End If
+
+class PhysicsConstraint(object):
+    TYPE_LIMITED_HINGE = 3
+    TYPE_RAGDOLL = 4
+
+    def __init__(self):
+        self.type = 0
+        self.shape_index = 0
+        self.unk_1 = 0
+        self.data = [] # Length: Type 3 == 18, Type 4 == 24
+        self.friction = 0.0
+        # If Type == 3
+        self.unk_2 = 0.0
+        self.unk_3 = 0.0
+        # End If
+
+class PhysicsNodeWeights(object):
+    def __init__(self):
+        self.physics = 0
+        self.velocity_gain = 1.0
+        self.hiearchy_gain = 0.0
+
+class PhysicsWeightSet(object):
+    def __init__(self):
+        self.name = ""
+        self.node_weights = [] #...PhysicsNodeWeights
+
+
+class Physics(object):
+    def __init__(self):
+        self.vis_node_index = 0
+        self.vis_radius = 0.0
+        
+        # Physics Shapes
+        self.shape_count = 0
+        self.shapes = [] #...PhysicsShape
+
+        self.constraint_count = 0
+        self.contraints = [] #...PhysicsConstraint
+
+        self.weight_set_count = 0
+        self.weight_sets = [] # ...PhysicsWeightSet
 
 class Model(object):
     def __init__(self):
@@ -250,6 +342,9 @@ class Model(object):
         self.flip_anim = True
 
         # LTB specific
+
+        # Model00p specific
+        self.physics = Physics()
 
         
     @property
