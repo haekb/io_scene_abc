@@ -47,6 +47,9 @@ class PCModel00PackedReader(object):
         # Temp until I can figure out how animations work!
         self._read_animations = False
 
+        # Re-map our material indexes
+        self.material_index_list = {}
+
     # Helper class for reading in mesh data
     # TODO: Need to clean up and move into a model class whenever I get to that.
     class MeshData(object):
@@ -63,6 +66,9 @@ class PCModel00PackedReader(object):
             # FEAR uses 64, which is mesh data WITHOUT colour info
             # Condemned uses 68, which includes colour info.
             self.data_size = data_size
+
+            if data_size not in [64, 68]:
+                print("WARNING: Non-standard MeshData size. Size is %d" % data_size)
 
         def read(self, reader, f):
             self.vertex = reader._read_vector(f)
@@ -227,14 +233,26 @@ class PCModel00PackedReader(object):
 
         mesh_info_position = f.tell()
 
-        # FIXME: I now need to read mesh data per piece instead of all at once now...
-        mesh_data_size = mesh_info[0].mesh_data_size
-
         # Hop back to the mesh data
         f.seek(mesh_data_position, 0)
         
-        # Data Length / Structure Size
-        mesh_data_list = [ self.MeshData(mesh_data_size).read(self, f) for _ in range( int(data_length / mesh_data_size) ) ]
+        # NEW
+
+        # TODO: Maybe sort info by data start?
+
+        mesh_data_list = [] 
+        for index in range(mesh_info_count):
+            info = mesh_info[index]
+
+            length = info.mesh_data_count
+            for _ in range( length ):
+                data = self.MeshData(info.mesh_data_size)
+                mesh_data_list.append( data.read(self, f) )
+
+        # END NEW
+
+        print("Data List Length -> ", len(mesh_data_list))
+
         index_list = [ self._unpack('H', f)[0] for _ in range( int(index_list_length / 2) ) ]
 
         debug_ftell = f.tell()
@@ -253,10 +271,18 @@ class PCModel00PackedReader(object):
             for lod_index in range(len(piece.lods)):
                 lod = piece.lods[lod_index]
                 info = mesh_info[running_lod_index]
+                running_index_list_index = info.index_list_position
 
                 # Set the material index (for the main lod only!)
                 if lod_index == 0:
-                    piece.material_index = info.material_index
+
+                    if info.material_index in self.material_index_list:
+                        piece.material_index = self.material_index_list[info.material_index]
+                    else:
+                        length = len(self.material_index_list)
+                        self.material_index_list[info.material_index] = piece.material_index = length
+
+                    #piece.material_index = info.material_index
 
                 for vertex_index in range(info.mesh_data_start, info.mesh_data_start + info.mesh_data_count):
                     mesh_data = mesh_data_list[ vertex_index ] 
@@ -620,6 +646,8 @@ class PCModel00PackedReader(object):
         physics.vis_node_index = self._unpack('I', f)[0]
         physics.vis_radius = self._unpack('f', f)[0]
         physics.shape_count = self._unpack('I', f)[0]
+
+        # TODO: Read each physics-based count in the order they're placed in the header
 
         physics.shapes = [ self._read_physics_shape(f) for _ in range(physics.shape_count) ]
 

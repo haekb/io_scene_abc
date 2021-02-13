@@ -63,7 +63,7 @@ struct Header {
     int PhysicsWeightCount;
     int PhysicsShapeCount;
     int Unk12;
-    int Unk13;
+    int BallAndSocketContraintCount; // Not confirmed
     int StiffSpringConstraintCount;
     int HingeConstraintCount;
     int LimitedHingeConstraintCount;
@@ -493,13 +493,17 @@ AnimationHeader animHdr;
 
 if (hdr.AnimationDataLength > 0) {
     // CUBE
-    //AnimSchema skip[16]; // Replace this with the schema length
+    AnimSchema skip[16]; // Replace this with the schema length
     // DELTA
-    AnimSchema skip[652]; // delta 652
+    //AnimSchema skip[652]; // delta 652
     // ROPE
     //AnimSchema skip[32];
     // Condemned Default00p
     //AnimSchema skip[8];
+    // Prototype
+    //AnimSchema skip[1212];
+    // Player NewHand
+    //AnimSchema skip[272];
 } else {
     //AnimSchema skip[4];
     // Condemned, empty is 8?
