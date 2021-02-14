@@ -38,6 +38,9 @@ def import_model(model, options):
     Ops = bpy.ops
     Types = bpy.types
 
+    # Set this because almost 100% chance you're importing keyframes that aren't aligned to 25fps
+    Context.scene.show_subframe=True
+
     # Create our new collection. This will help us later on..
     collection = Data.collections.new(model.name)
     # Add our collection to the scene
@@ -81,12 +84,12 @@ def import_model(model, options):
         # End If
     # End For
 
-    # FIXME: Make bones touch their parents. 
-    # This however breaks the animations. 
-    # 
-    # I think I need to offset this in the animation processing, 
+    # FIXME: Make bones touch their parents.
+    # This however breaks the animations.
+    #
+    # I think I need to offset this in the animation processing,
     # and animations might be a touch broken right now but it's not noticable...just ugly in blender.
-    # ---------------------------- 
+    # ----------------------------
     # for node in model.nodes:
     #     bone = armature.edit_bones[node.name]
 
@@ -95,7 +98,7 @@ def import_model(model, options):
     #     # End If
 
     #     for child in bone.children:
-    #         bone.tail = child.head 
+    #         bone.tail = child.head
     # # End For
 
     Ops.object.mode_set(mode='OBJECT')
@@ -131,7 +134,7 @@ def import_model(model, options):
             materials.append(material)
 
             ''' Create texture. '''
-            
+
             # Swapped over to nodes
             bsdf = material.node_tree.nodes["Principled BSDF"]
             texImage = material.node_tree.nodes.new('ShaderNodeTexImage')
@@ -310,7 +313,7 @@ def import_model(model, options):
             index  = index + 1
             # Create a new action with the animation name
             action = bpy.data.actions.new(name=animation.name)
-            
+
             # Temp set
             armature_object.animation_data.action = action
 
@@ -320,8 +323,9 @@ def import_model(model, options):
             # For every keyframe
             for keyframe_index, keyframe in enumerate(animation.keyframes):
                 # Set keyframe time - Scale it down to the default blender animation framerate (25fps)
-                Context.scene.frame_set(keyframe.time * 0.025)
-           
+                Context.scene.frame_set(int(keyframe.time * 0.024)) # TODO: remove this once vertex animation is sorted out, frame=subframe_time argument will cover it
+                subframe_time=keyframe.time*0.024
+
                 '''
                 Recursively apply transformations to a nodes children
                 Notes: It carries everything (nodes, pose_bones..) with it, because I expected it to not be a child of this scope...oops!
@@ -350,7 +354,7 @@ def import_model(model, options):
                     # otherwise just use our matrix
                     if parent_matrix != None:
                         matrix = parent_matrix @ matrix
-                    
+
                     pose_bone.matrix = matrix
 
                     for _ in range(0, node.child_count):
@@ -362,19 +366,19 @@ def import_model(model, options):
                 Func End
                 '''
 
-                
+
                 recursively_apply_transform(model.nodes, 0, armature_object.pose.bones, None)
 
                 # For every bone
                 for bone, node in zip(armature_object.pose.bones, model.nodes):
-                    bone.keyframe_insert('location')
-                    bone.keyframe_insert('rotation_quaternion')
+                    bone.keyframe_insert('location', frame=subframe_time)
+                    bone.keyframe_insert('rotation_quaternion', frame=subframe_time)
                 # End For
 
                 if options.should_import_vertex_animations:
                     # For every vert (Thanks animation_animall!)
                     for obj in armature_object.children:
-                        for vert_index, vert in enumerate(obj.data.vertices): 
+                        for vert_index, vert in enumerate(obj.data.vertices):
 
                             # Let's hope they're in the same order!
                             our_vert_index = vert_index
@@ -390,6 +394,8 @@ def import_model(model, options):
                                 vertex_transform = animation.vertex_deformations[node_index][md_vert].location
                                 vert.co = node.bind_matrix @ vertex_transform
 
+                                # TODO: "frame=subframe_time"; without a proper vertex animation UI in Blender
+                                #       this just mixes all the animations up on top of each other
                                 vert.keyframe_insert('co', group="Vertex %s" % vert_index)
                             # End If
                         # End For
@@ -657,14 +663,14 @@ class ImportOperatorLTB(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
             model = PCLTBModelReader().from_file(self.filepath)
         except Exception as e:
             model = PS2LTBModelReader().from_file(self.filepath)
-        
+
         # Load the model
         #try:
         #model = PS2LTBModelReader().from_file(self.filepath)
         #except Exception as e:
         #    show_message_box(str(e), "Read Error", 'ERROR')
         #    return {'CANCELLED'}
-        
+
         model.name = os.path.splitext(os.path.basename(self.filepath))[0]
         image = None
         if self.should_import_textures:
