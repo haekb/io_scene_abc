@@ -5,7 +5,7 @@ from mathutils import Vector, Matrix, Quaternion
 import copy
 
 #
-# ABC Model Format Version 6 
+# ABC Model Format Version 6
 # Spec: https://web.archive.org/web/20170905023149/http://www.bop-mod.com/download/docs/LithTech-ABC-v6-File-Format.html
 #
 class ABCV6ModelReader(object):
@@ -32,7 +32,7 @@ class ABCV6ModelReader(object):
     #
     # Helpers
     # TODO: Move to utils
-    # 
+    #
     def _read_matrix(self, f):
         data = unpack('16f', f)
         rows = [data[0:4], data[4:8], data[8:12], data[12:16]]
@@ -50,7 +50,7 @@ class ABCV6ModelReader(object):
 
     #
     # Format Specific
-    # 
+    #
 
     def _read_vertex(self, f):
         vertex = Vertex()
@@ -322,7 +322,7 @@ class ABCV6ModelReader(object):
                     self._model.flip_geom = flip_geom
                     self._model.flip_anim = flip_anim
         # End
-        
+
         # Okay we're going to use the first animation's location and rotation data for our node's bind_matrix
         for node_index in range(len(self._model.nodes)):
             node = self._model.nodes[node_index]
@@ -360,7 +360,7 @@ class ABCV6ModelReader(object):
 
                 # Find the position of the vertex we're going to deform
                 md_vert = self._model.nodes[node_index].md_vert_list.index(vert_index)
-                
+
                 # Grab are transformed deformation
                 vertex_transform = self._model.animations[0].vertex_deformations[node_index][md_vert].location
 

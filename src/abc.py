@@ -7,7 +7,7 @@ REFERENCE LIST:
     https://web.archive.org/web/20080605043638/http://bop-mod.com:80/download/docs/ABC-Format-v6.html
 
 TODO LIST:
-    * Figure out what the [-1, 0, 18] flag is at the end of animation bounds. 
+    * Figure out what the [-1, 0, 18] flag is at the end of animation bounds.
     * Add the ability to optionally merge import meshes
     * Add the ability to import textures automatically
 '''
@@ -71,6 +71,9 @@ class Face(object):
     def __init__(self):
         self.vertices = []
 
+        # ABCv6 specific
+        self.normal=Vector()
+
 
 class LOD(object):
     def __init__(self):
@@ -98,11 +101,11 @@ class LOD(object):
 
 
 class Piece(object):
-    
+
     @property
     def weight_count(self):
         return sum([len(vertex.weights) for lod in self.lods for vertex in lod.vertices])
-    
+
     def __init__(self):
         self.material_index = 0
         self.specular_power = 0.0
@@ -115,13 +118,13 @@ class Piece(object):
         self.lod_min = 0.0
         self.lod_max = 0.0
         self.lod_distances = []
-    
+
 class Node(object):
-    
+
     @property
     def is_removable(self):
         return (self.flags & 1) != 0
-    
+
     @is_removable.setter
     def is_removable(self, b):
         self.flags = (self.flags & ~1) | (1 if b else 0)
@@ -129,7 +132,7 @@ class Node(object):
     @property
     def uses_relative_location(self):
         return (self.flags & 2) != 0
-    
+
     def __init__(self):
         self.name = ''
         self.index = 0
@@ -140,7 +143,7 @@ class Node(object):
         # Version 6 specific
         self.md_vert_count = 0
         self.md_vert_list = []
-    
+
     def __repr__(self):
         return self.name
 
@@ -175,15 +178,15 @@ class Animation(object):
             def __init__(self):
                 self.location = Vector()
                 self.rotation = Quaternion((1, 0, 0, 0))
-            
+
             @property
             def matrix(self):
                 return Matrix.Translation(self.location) * self.rotation.to_matrix().to_4x4()
-            
+
             @matrix.setter
             def matrix(self, m):
                 self.location, self.rotation, _ = m.decompose()
-        
+
         def __init__(self):
             self.time = 0
             self.string = ''
@@ -238,7 +241,7 @@ class Model(object):
         self.lod_distances = []
         self.weight_sets = []
         self.anim_bindings = []
-        
+
         # ABC v6 specific
 
         # By default it's true, this is only used when self.version == 6!
@@ -251,7 +254,7 @@ class Model(object):
 
         # LTB specific
 
-        
+
     @property
     def keyframe_count(self):
         return sum([len(animation.keyframes) for animation in self.animations])
@@ -259,7 +262,7 @@ class Model(object):
     @property
     def face_count(self): #TODO: this is actually probably per LOD as well
         return sum([len(lod.faces) for piece in self.pieces for lod in piece.lods])
-    
+
     @property
     def vertex_count(self):
         return sum([len(lod.vertices) for piece in self.pieces for lod in piece.lods])
@@ -267,7 +270,7 @@ class Model(object):
     @property
     def weight_count(self):
         return sum([len(vertex.weights) for piece in self.pieces for lod in piece.lods for vertex in lod.vertices])
-    
+
     @property
     def lod_count(self):
         return len(self.pieces[0].lods)

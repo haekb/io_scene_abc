@@ -25,9 +25,9 @@ class LTAVersion(Enum):
 
 class ABCVersion(Enum):
     ABC12 = 'abc-12'
+    ABC6 = 'abc-6'
     # Not supported...yet
     ABC13 = 'abc-13'
-    ABC6 = 'abc-6'
 
     @staticmethod
     def get_text(version):
@@ -36,7 +36,7 @@ class ABCVersion(Enum):
         elif version == ABCVersion.ABC13.value:
             return 'ABC v13 (Not Supported)'
         elif version == ABCVersion.ABC6.value:
-            return 'ABC v6 (Not Supported)'
+            return 'ABC v6 (Lithtech 1.0)' #1.0/1.5?
         # End If
         return 'Unknown Version'
 

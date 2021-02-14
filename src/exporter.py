@@ -1,8 +1,9 @@
 from bpy.types import Operator
 from bpy_extras.io_utils import ExportHelper
-from bpy.props import StringProperty, EnumProperty
+from bpy.props import StringProperty, EnumProperty, BoolProperty
 from .builder import ModelBuilder
 from .writer_abc_pc import ABCModelWriter
+from .writer_abc_v6_pc import ABCV6ModelWriter
 from .writer_lta_pc import LTAModelWriter
 from .utils import ABCVersion, LTAVersion
 
@@ -45,13 +46,24 @@ class ExportOperatorABC(Operator, ExportHelper):
         items = item_abc_version,
     )
 
+    should_export_transform: BoolProperty(
+        name="Export V6 Transform Info (Not Implemented)",
+        description="When checked, will append TransformInfo section for Lithtech 1.5",
+        default=False,
+    )
+
     def execute(self, context):
-        if self.abc_version in [ABCVersion.ABC6.value, ABCVersion.ABC13.value]:
+        if self.abc_version in [ABCVersion.ABC13.value]:
             raise Exception('Not implemented ({}).'.format(ABCVersion.get_text(self.abc_version)))
 
         armature_object = context.scene.objects[self.armature]
         model = ModelBuilder().from_armature(armature_object)
-        ABCModelWriter().write(model, self.filepath, self.abc_version)
+
+        if self.abc_version==ABCVersion.ABC6.value:
+            ABCV6ModelWriter().write(model, self.filepath, self.abc_version)
+        else:
+            ABCModelWriter().write(model, self.filepath, self.abc_version)
+
         return {'FINISHED'}
 
     def menu_func_export(self, context):

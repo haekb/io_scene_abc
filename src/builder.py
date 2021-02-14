@@ -10,7 +10,7 @@ class ModelBuilder(object):
     #
     # Set Keyframe Timings
     # Handles setting up the dictionary struct if it's the first time through a particular bone.
-    # 
+    #
     @staticmethod
     def set_keyframe_timings(keyframe_dictionary, bone, time, transform_type):
         # Set up the small struct, if it's not already done
@@ -82,7 +82,7 @@ class ModelBuilder(object):
             for (vertex_index, vertex) in enumerate(mesh.vertices):
                 weights = []
                 for vertex_group in mesh_object.vertex_groups:
-                    
+
                     # Location is used in Lithtech 2.0 games, but is not in ModelEdit.
                     try:
                         bias = vertex_group.weight(vertex_index)
@@ -102,9 +102,9 @@ class ModelBuilder(object):
 
 
                 # Note: This corrects any rotation done on import
-                rot = Matrix.Rotation(radians(-180), 4, 'Z') @ Matrix.Rotation(radians(90), 4, 'X')  
+                rot = Matrix.Rotation(radians(-180), 4, 'Z') @ Matrix.Rotation(radians(90), 4, 'X')
 
-                v = Vertex()                
+                v = Vertex()
                 v.location = vertex.co @ rot
                 v.normal = vertex.normal
                 v.weights.extend(weights)
@@ -117,6 +117,8 @@ class ModelBuilder(object):
                     raise Exception('Mesh \'{}\' is not triangulated.'.format(
                         mesh.name))  # TODO: automatically triangulate the mesh, and have this be reversible
                 face = Face()
+                face.normal=polygon.normal
+
                 for loop_index in polygon.loop_indices:
                     uv = mesh.uv_layers.active.data[loop_index].uv.copy()  # TODO: use "active"?
                     uv.y = 1.0 - uv.y
@@ -187,7 +189,7 @@ class ModelBuilder(object):
             print("Processing animation %s" % action.name)
             animation = Animation()
             animation.name = action.name
-            animation.extents = Vector((10, 10, 10))
+            animation.extents = mesh_object.dimensions # TODO: actually calculate the bounds of each animation; mesh/armature_object.bound_box[0]/[-1] maybe?
 
             armature_object.animation_data.action = action
 
@@ -218,7 +220,7 @@ class ModelBuilder(object):
                     current_skip_count = 4
                 elif 'location' in fcurve.data_path:
                     current_type = 'location'
-                    current_skip_count = 3   
+                    current_skip_count = 3
                 elif 'scale' in fcurve.data_path:
                     current_skip_count = 3
                     fcurve_index += current_skip_count
@@ -241,7 +243,7 @@ class ModelBuilder(object):
             # For now we can just use the first node!
             for time in keyframe_timings[model.nodes[0].name]['rotation_quaternion']:
                 # Expand our time
-                scaled_time = time * (1.0/0.025)
+                scaled_time = time * (1.0/0.024)
 
                 keyframe = Animation.Keyframe()
                 keyframe.time = scaled_time
@@ -252,12 +254,12 @@ class ModelBuilder(object):
                 transforms = list()
 
                 keyframe_timing = keyframe_timings[pose_bone.name]
-                
+
                 # FIXME: In the future we may trim off timing with no rotation/location changes
                 # So we'd have to loop through each keyframe timing, but for now this should work!
                 for time in keyframe_timing['rotation_quaternion']:
                     # Expand our time
-                    scaled_time = time * (1.0/0.025)
+                    scaled_time = time * (1.0/0.024)
                     bpy.context.scene.frame_set(time)
 
                     transform = Animation.Keyframe.Transform()
