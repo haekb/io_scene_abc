@@ -1,5 +1,5 @@
 from .abc import *
-from math import pi, radians
+from math import pi, radians, floor
 from mathutils import Vector, Matrix, Quaternion, Euler
 import bpy
 
@@ -260,7 +260,7 @@ class ModelBuilder(object):
                 for time in keyframe_timing['rotation_quaternion']:
                     # Expand our time
                     scaled_time = time * (1.0/0.024)
-                    bpy.context.scene.frame_set(time)
+                    bpy.context.scene.frame_set(time, subframe=time-floor(time))
 
                     transform = Animation.Keyframe.Transform()
 
