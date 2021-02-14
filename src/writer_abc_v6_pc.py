@@ -36,6 +36,17 @@ class ABCV6ModelWriter(object):
     def __init__(self):
         self._version = 'not-set'
 
+        # Copied from reader_abc_v6_pc.py, should probably be in an import
+        # Node Flags
+        self._flag_null = 1
+        self._flag_tris = 2 # This node contains triangles
+        self._flag_deformation = 4 # This node contains deformation (vertex animation). Used in combo with flag_tris
+        # Might be Lithtech 1.5 only flags
+        self._flag_env_map = 8
+        self._flag_env_map_only = 16
+        self._flag_scroll_tex_u = 32
+        self._flag_scroll_tex_v = 64
+
     def write(self, model, path, version):
         class Section(object):
             def __init__(self, name, data):
@@ -79,8 +90,8 @@ class ABCV6ModelWriter(object):
                     normal=face.normal.normalized()
                     buffer.extend(struct.pack('3b', int(-normal.x*127), int(-normal.y*127), int(-normal.z*127))) # FIXME: negative normals because Blender winds triangles the wrong way
 
-                buffer.extend(struct.pack('I', len(lod.vertices))) # TODO: vert count including all lods
-                buffer.extend(struct.pack('I', len(lod.vertices))) # lod.vert_count?
+                buffer.extend(struct.pack('I', len(lod.vertices))) # TODO: sum(lod.vert_count for lod in piece.lods)
+                buffer.extend(struct.pack('I', len(lod.vertices))) # lod[0].vert_count
                 for vertex in lod.vertices:
                     buffer.extend(self._vector_to_bytes(vertex.weights[0].location))
                     normal=vertex.normal.normalized()
@@ -94,11 +105,19 @@ class ABCV6ModelWriter(object):
         buffer=bytearray()
 
         for node in model.nodes:
+            # FIXME: this is awful, and wrong, and in the wrong place, and... don't do this
+            node.flags=self._flag_null
+            for piece in model.pieces:
+                for lod in piece.lods:
+                    for vertex in lod.vertices:
+                        if vertex.weights[0].node_index==node.index:
+                            node.flags=self._flag_tris;
+
             buffer.extend(self._vector_to_bytes(Vector((-10, -10, -10)))) # TODO: min bounds
             buffer.extend(self._vector_to_bytes(Vector((10, 10, 10))))    # TODO: max bounds
             buffer.extend(self._string_to_bytes(node.name))
             buffer.extend(struct.pack('H', node.index))
-            buffer.extend(struct.pack('B', node.flags)) # FIXME: in builder.py probably, should not always be 0
+            buffer.extend(struct.pack('B', node.flags))
             buffer.extend(struct.pack('I', node.md_vert_count))
             for md_vert in node.md_vert_list:
                 buffer.extend(struct.pack('H', md_vert.vertex_index))
