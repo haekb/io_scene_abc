@@ -323,9 +323,7 @@ def import_model(model, options):
             # For every keyframe
             for keyframe_index, keyframe in enumerate(animation.keyframes):
                 # Set keyframe time - Scale it down to the default blender animation framerate (25fps)
-                Context.scene.frame_set(int(keyframe.time * 0.024)) # TODO: remove this once vertex animation is sorted out, frame=subframe_time argument will cover it
                 subframe_time=keyframe.time*0.024
-
                 '''
                 Recursively apply transformations to a nodes children
                 Notes: It carries everything (nodes, pose_bones..) with it, because I expected it to not be a child of this scope...oops!
@@ -396,7 +394,7 @@ def import_model(model, options):
 
                                 # TODO: "frame=subframe_time"; without a proper vertex animation UI in Blender
                                 #       this just mixes all the animations up on top of each other
-                                vert.keyframe_insert('co', group="Vertex %s" % vert_index)
+                                vert.keyframe_insert('co', group="Vertex %s" % vert_index, frame=subframe_time)
                             # End If
                         # End For
                     # End For
@@ -421,7 +419,7 @@ def import_model(model, options):
 
     # Apply the geometry flip in armature space
     # This may not be the best place to do it, but it works for now!
-    if model.version == 6 or model.flip_geom:
+    if model.version == 6 and model.flip_geom:
         armature_object.scale.z = -1.0
 
     return {'FINISHED'}
