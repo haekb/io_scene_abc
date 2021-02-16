@@ -90,7 +90,7 @@ class ABCV6ModelWriter(object):
                     normal=face.normal.normalized()
                     buffer.extend(struct.pack('3b', int(-normal.x*127), int(-normal.y*127), int(-normal.z*127))) # FIXME: negative normals because Blender winds triangles the wrong way
 
-                buffer.extend(struct.pack('I', len(lod.vertices))) # TODO: sum(lod.vert_count for lod in piece.lods)
+                buffer.extend(struct.pack('I', model.vertex_count))
                 buffer.extend(struct.pack('I', len(lod.vertices))) # lod[0].vert_count
                 for vertex in lod.vertices:
                     buffer.extend(self._vector_to_bytes(vertex.weights[0].location))
@@ -111,7 +111,8 @@ class ABCV6ModelWriter(object):
                 for lod in piece.lods:
                     for vertex in lod.vertices:
                         if vertex.weights[0].node_index==node.index:
-                            node.flags=self._flag_tris;
+                            node.flags=self._flag_tris
+                            break
 
             buffer.extend(self._vector_to_bytes(Vector((-10, -10, -10)))) # TODO: min bounds
             buffer.extend(self._vector_to_bytes(Vector((10, 10, 10))))    # TODO: max bounds
@@ -143,7 +144,8 @@ class ABCV6ModelWriter(object):
 
             for node_transform_list in anim.node_keyframe_transforms:
                 for keyframe_transform in node_transform_list:
-                    keyframe_transform.rotation.conjugate()
+                    if model.flip_anim:
+                        keyframe_transform.rotation.conjugate()
                     buffer.extend(self._transform_to_bytes(keyframe_transform))
 
                 # TODO: vertex animation data
