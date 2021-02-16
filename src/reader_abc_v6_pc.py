@@ -153,8 +153,8 @@ class ABCV6ModelReader(object):
         node = Node()
 
         # These may be needed to calculate the position...
-        bounds_min = self._read_vector(f)
-        bounds_max = self._read_vector(f)
+        node.bounds_min = self._read_vector(f)
+        node.bounds_max = self._read_vector(f)
 
         # Bind matrix is set after we read in animations!
 
@@ -204,11 +204,11 @@ class ABCV6ModelReader(object):
         animation = Animation()
         animation.name = self._read_string(f)
         animation_length = unpack('I', f)[0]
-        bounds_min = self._read_vector(f)
-        bounds_max = self._read_vector(f)
+        animation.bounds_min = self._read_vector(f)
+        animation.bounds_max = self._read_vector(f)
 
         # ?
-        animation.extents = bounds_max
+        animation.extents = animation.bounds_max
 
         animation.keyframe_count = unpack('I', f)[0]
         animation.keyframes = [self._read_keyframe(f) for _ in range(animation.keyframe_count)]

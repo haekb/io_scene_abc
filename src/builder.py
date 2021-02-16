@@ -154,6 +154,15 @@ class ModelBuilder(object):
 
             node.bind_matrix = matrix
 
+            # ABC v6 specific
+            # FIXME: disgusting, can this be done better?
+            for piece in model.pieces:
+                for lod in piece.lods:
+                    for vertex in lod.vertices:
+                        if vertex.weights[0].node_index==bone_index:
+                            node.bounds_min=Vector((min(node.bounds_min.x, vertex.location.x), min(node.bounds_min.y, vertex.location.y), min(node.bounds_min.z, vertex.location.z)))
+                            node.bounds_max=Vector((max(node.bounds_min.x, vertex.location.x), max(node.bounds_min.y, vertex.location.y), max(node.bounds_min.z, vertex.location.z)))
+
             #print("Processed", node.name, node.bind_matrix)
             node.child_count = len(bone.children)
             model.nodes.append(node)
@@ -189,7 +198,8 @@ class ModelBuilder(object):
             print("Processing animation %s" % action.name)
             animation = Animation()
             animation.name = action.name
-            animation.extents = mesh_object.dimensions # TODO: actually calculate the bounds of each animation; mesh/armature_object.bound_box[0]/[-1] maybe?
+            animation.bounds_min=Vector(mesh_object.bound_box[0]) # will using mesh_object here break if there's multiple mesh
+            animation.bounds_max=Vector(mesh_object.bound_box[6]) # objects using the same armature as a parent? DON'T DO THAT
 
             armature_object.animation_data.action = action
 
@@ -284,7 +294,7 @@ class ModelBuilder(object):
         ''' AnimBindings '''
         anim_binding = AnimBinding()
         anim_binding.name = 'base'
-        animation.extents = Vector((10, 10, 10))
+        anim_binding.extents = Vector((10, 10, 10))
         model.anim_bindings.append(anim_binding)
 
         return model

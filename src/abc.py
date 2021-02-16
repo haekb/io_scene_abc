@@ -141,6 +141,9 @@ class Node(object):
         self.child_count = 0
 
         # Version 6 specific
+        self.bounds_min=Vector()
+        self.bounds_max=Vector()
+
         self.md_vert_count = 0
         self.md_vert_list = []
 
@@ -200,7 +203,8 @@ class Animation(object):
         self.node_keyframe_transforms = []
 
         # Version 6 specific
-
+        self.bounds_min=Vector()
+        self.bounds_max=Vector()
         # Note this should line up with md_vert_list, and go on for md_vert_count * keyframe_count
         # List of 3 chars (verts)
         self.vertex_deformations = []

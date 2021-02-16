@@ -97,7 +97,7 @@ class ABCV6ModelWriter(object):
                     normal=vertex.normal.normalized()*127
                     buffer.extend(struct.pack('3b', int(normal.x), int(-normal.y), int(normal.z)))
                     buffer.extend(struct.pack('B', vertex.weights[0].node_index)) # TODO: error out on more than a single weight?
-                    buffer.extend(struct.pack('2H', 0, 0))  # TODO: lod related, I think?
+                    buffer.extend(struct.pack('2H', 0, 0)) # TODO: lod related, I think?
 
         sections.append(Section('Geometry', bytes(buffer)))
 
@@ -114,8 +114,8 @@ class ABCV6ModelWriter(object):
                             node.flags=self._flag_tris
                             break
 
-            buffer.extend(self._vector_to_bytes(Vector((-10, -10, -10)))) # TODO: min bounds
-            buffer.extend(self._vector_to_bytes(Vector((10, 10, 10))))    # TODO: max bounds
+            buffer.extend(self._vector_to_bytes(node.bounds_min))
+            buffer.extend(self._vector_to_bytes(node.bounds_max))
             buffer.extend(self._string_to_bytes(node.name))
             buffer.extend(struct.pack('H', node.index))
             buffer.extend(struct.pack('B', node.flags))
@@ -133,13 +133,13 @@ class ABCV6ModelWriter(object):
         for anim in model.animations:
             buffer.extend(self._string_to_bytes(anim.name))
             buffer.extend(struct.pack('I', int(anim.keyframes[-1].time))) # final keyframe time; playing past final keyframe's time seems unpredictable
-            buffer.extend(self._vector_to_bytes(-anim.extents/2)) # TODO: min bounds
-            buffer.extend(self._vector_to_bytes(anim.extents/2))  # TODO: max bounds
+            buffer.extend(self._vector_to_bytes(anim.bounds_min))
+            buffer.extend(self._vector_to_bytes(anim.bounds_max))
             buffer.extend(struct.pack('I', len(anim.keyframes)))
             for keyframe in anim.keyframes:
                 buffer.extend(struct.pack('I', int(keyframe.time)))
-                buffer.extend(self._vector_to_bytes(-anim.extents/2)) # TODO: min bounds
-                buffer.extend(self._vector_to_bytes(anim.extents/2))  # TODO: max bounds
+                buffer.extend(self._vector_to_bytes(anim.bounds_min)) # TODO: actual keyframe bounding boxes
+                buffer.extend(self._vector_to_bytes(anim.bounds_max))
                 buffer.extend(self._string_to_bytes(keyframe.string))
 
             for node_transform_list in anim.node_keyframe_transforms:
@@ -159,7 +159,7 @@ class ABCV6ModelWriter(object):
         buffer=bytearray()
 
         for anim in model.animations:
-            buffer.extend(self._vector_to_bytes(anim.extents))
+            buffer.extend(self._vector_to_bytes(-anim.bounds_min+anim.bounds_max))
 
         sections.append(Section('AnimDims', bytes(buffer)))
 
