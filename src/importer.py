@@ -419,7 +419,7 @@ def import_model(model, options):
 
     # Apply the geometry flip in armature space
     # This may not be the best place to do it, but it works for now!
-    if model.version == 6 and model.flip_geom:
+    if model.version == 6 or model.flip_geom:
         armature_object.scale.z = -1.0
 
     return {'FINISHED'}

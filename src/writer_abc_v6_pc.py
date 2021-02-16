@@ -87,15 +87,15 @@ class ABCV6ModelWriter(object):
                     buffer.extend(struct.pack('2f', face.vertices[1].texcoord.x, face.vertices[1].texcoord.y))
                     buffer.extend(struct.pack('2f', face.vertices[2].texcoord.x, face.vertices[2].texcoord.y))
                     buffer.extend(struct.pack('3H', face.vertices[0].vertex_index, face.vertices[1].vertex_index, face.vertices[2].vertex_index))
-                    normal=face.normal.normalized()
-                    buffer.extend(struct.pack('3b', int(-normal.x*127), int(-normal.y*127), int(-normal.z*127))) # FIXME: negative normals because Blender winds triangles the wrong way
+                    normal=face.normal.normalized()*127
+                    buffer.extend(struct.pack('3b', int(normal.x), int(-normal.y), int(normal.z)))
 
                 buffer.extend(struct.pack('I', model.vertex_count))
                 buffer.extend(struct.pack('I', len(lod.vertices))) # lod[0].vert_count
                 for vertex in lod.vertices:
                     buffer.extend(self._vector_to_bytes(vertex.weights[0].location))
-                    normal=vertex.normal.normalized()
-                    buffer.extend(struct.pack('3b', int(-normal.x*127), int(-normal.y*127), int(-normal.z*127))) # FIXME: negative normals because Blender winds triangles the wrong way
+                    normal=vertex.normal.normalized()*127
+                    buffer.extend(struct.pack('3b', int(normal.x), int(-normal.y), int(normal.z)))
                     buffer.extend(struct.pack('B', vertex.weights[0].node_index)) # TODO: error out on more than a single weight?
                     buffer.extend(struct.pack('2H', 0, 0))  # TODO: lod related, I think?
 
