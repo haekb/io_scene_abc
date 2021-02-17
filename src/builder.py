@@ -198,8 +198,6 @@ class ModelBuilder(object):
             print("Processing animation %s" % action.name)
             animation = Animation()
             animation.name = action.name
-            animation.bounds_min=Vector(mesh_object.bound_box[0]) # will using mesh_object here break if there's multiple mesh
-            animation.bounds_max=Vector(mesh_object.bound_box[6]) # objects using the same armature as a parent? DON'T DO THAT
 
             armature_object.animation_data.action = action
 
@@ -254,10 +252,17 @@ class ModelBuilder(object):
             for time in keyframe_timings[model.nodes[0].name]['rotation_quaternion']:
                 # Expand our time
                 scaled_time = time * (1.0/0.024)
+                bpy.context.scene.frame_set(time, subframe=time-floor(time))
 
                 keyframe = Animation.Keyframe()
                 keyframe.time = scaled_time
                 animation.keyframes.append(keyframe)
+
+                keyframe.bounds_min=Vector(mesh_object.bound_box[0]) # will using mesh_object here break if there's multiple mesh
+                keyframe.bounds_max=Vector(mesh_object.bound_box[6]) # objects using the same armature as a parent? DON'T DO THAT
+
+            animation.bounds_min=animation.keyframes[-1].bounds_min # if this doesn't get what we want, maybe doing
+            animation.bounds_max=animation.keyframes[-1].bounds_max # some math on the bounds of every keyframe will
 
             # Okay let's start processing our transforms!
             for node_index, (node, pose_bone) in enumerate(zip(model.nodes, armature_object.pose.bones)):
