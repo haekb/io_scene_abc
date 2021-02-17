@@ -159,7 +159,7 @@ class ABCV6ModelWriter(object):
         buffer=bytearray()
 
         for anim in model.animations:
-            buffer.extend(self._vector_to_bytes((-anim.bounds_min+anim.bounds_max)/2))
+            buffer.extend(self._vector_to_bytes((-anim.keyframes[-1].bounds_min+anim.keyframes[-1].bounds_max)/2))
 
         sections.append(Section('AnimDims', bytes(buffer)))
 

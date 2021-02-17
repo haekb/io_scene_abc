@@ -261,8 +261,8 @@ class ModelBuilder(object):
                 keyframe.bounds_min=Vector(mesh_object.bound_box[0]) # will using mesh_object here break if there's multiple mesh
                 keyframe.bounds_max=Vector(mesh_object.bound_box[6]) # objects using the same armature as a parent? DON'T DO THAT
 
-            animation.bounds_min=animation.keyframes[-1].bounds_min # if this doesn't get what we want, maybe doing
-            animation.bounds_max=animation.keyframes[-1].bounds_max # some math on the bounds of every keyframe will
+            animation.bounds_min=max([keyframe.bounds_min for keyframe in animation.keyframes])
+            animation.bounds_max=max([keyframe.bounds_max for keyframe in animation.keyframes])
 
             # Okay let's start processing our transforms!
             for node_index, (node, pose_bone) in enumerate(zip(model.nodes, armature_object.pose.bones)):
