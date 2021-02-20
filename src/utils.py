@@ -2,6 +2,10 @@ import bpy
 import bmesh
 from enum import Enum
 
+# Blender default: 25fps = frame 0-24 for our purposes
+def get_framerate():
+    return 0.024
+
 # Enums
 class LTAVersion(Enum):
     TALON = 'lithtech-talon'

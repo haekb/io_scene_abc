@@ -7,7 +7,7 @@ from math import pi, ceil
 from mathutils import Vector, Matrix, Quaternion, Euler
 from bpy.props import StringProperty, BoolProperty, FloatProperty
 from .dtx import DTX
-from .utils import show_message_box
+from .utils import show_message_box, get_framerate
 
 # Format imports
 from .reader_abc_v6_pc import ABCV6ModelReader
@@ -302,10 +302,13 @@ def import_model(model, options):
         armature_object.animation_data_create()
 
         for obj in armature_object.children:
-            obj.animation_data_create()
             obj.shape_key_add(name="neutral_pose", from_mix=False)
+        # we'll animate using mesh.shape_keys.eval_time
+        mesh.shape_keys.animation_data_create()
+        mesh.shape_keys.use_relative=False
 
         actions = []
+        md_actions=[]
 
         index = 0
         processed_frame_count=1 # 1 for neutral_pose
@@ -321,16 +324,13 @@ def import_model(model, options):
 
             if options.should_import_vertex_animations:
                 # Create a new shape key action with d_ prefixed animation name
-                vertex_action=Data.actions.new(name="d_%s" % (animation.name))
-
-                # we'll animate using mesh.shape_keys.eval_time
-                mesh.shape_keys.animation_data_create()
-                mesh.shape_keys.animation_data.action=vertex_action
+                md_action=Data.actions.new(name="d_%s" % (animation.name))
+                mesh.shape_keys.animation_data.action=md_action
 
             # For every keyframe
             for keyframe_index, keyframe in enumerate(animation.keyframes):
                 # Set keyframe time - Scale it down to the default blender animation framerate (25fps)
-                subframe_time=keyframe.time*0.024
+                subframe_time=keyframe.time*get_framerate()
                 '''
                 Recursively apply transformations to a nodes children
                 Notes: It carries everything (nodes, pose_bones..) with it, because I expected it to not be a child of this scope...oops!
@@ -385,11 +385,6 @@ def import_model(model, options):
                         # create our shape key
                         shape_key=obj.shape_key_add(name="%s_%d" % (animation.name, keyframe_index), from_mix=False)
 
-                        if keyframe_index==0:
-                            shape_key.relative_key=mesh.shape_keys.reference_key
-                        else:
-                            shape_key.relative_key=mesh.shape_keys.key_blocks[keyframe_index+processed_frame_count-1]
-                        #
                         for vert_index, vert in enumerate(obj.data.vertices):
                             our_vert_index=vert_index
                             node_index=model.pieces[0].lods[0].vertices[our_vert_index].weights[0].node_index
@@ -404,28 +399,32 @@ def import_model(model, options):
                         # End For
                     # End For
 
-                    # disgusting, but it works for now
-                    obj.data.shape_keys.key_blocks[keyframe_index+processed_frame_count].value=1.0
-                    obj.data.shape_keys.key_blocks["%s_%d" % (animation.name, keyframe_index)].keyframe_insert("value", frame=subframe_time)
-                    if keyframe_index>0:
-                        obj.data.shape_keys.key_blocks[keyframe_index+processed_frame_count].value=0.0
-                        obj.data.shape_keys.key_blocks["%s_%d" % (animation.name, keyframe_index)].keyframe_insert("value", frame=animation.keyframes[keyframe_index-1].time*0.024)
+                    mesh.shape_keys.eval_time=(processed_frame_count+keyframe_index)*10
+                    mesh.shape_keys.keyframe_insert("eval_time", frame=subframe_time)
                 # End For
 
             processed_frame_count+=len(animation.keyframes)
 
             # Add to actions array
             actions.append(action)
+            if options.should_import_vertex_animations:
+                md_actions.append(md_action)
 
         # Add our actions to animation data
         armature_object.animation_data.action = actions[0]
+        if options.should_import_vertex_animations:
+            mesh.shape_keys.animation_data.action=md_actions[0]
 
-        for obj in armature_object.children:
-            obj.animation_data.action = actions[0]
+    ''' Vertex Animations '''
+    # TODO: move it all out of the animations section
+    #       cleaner than adding more layers of loops
+    #if options.should_import_vertex_animations:
+    #    for animation in model.animations:
+    #        print("Processing vertex animations for ", animation.name)
 
     # Set almost sane defaults
     Context.scene.frame_start=0
-    #Context.scene.frame_end=ceil(max([animation.keyframes[-1].time*0.024 for animation in model.animations]))
+    #Context.scene.frame_end=ceil(max([animation.keyframes[-1].time*get_framerate() for animation in model.animations]))
     # Set our keyframe time to 0
     Context.scene.frame_set(0)
     # Set this because almost 100% chance you're importing keyframes that aren't aligned to 25fps

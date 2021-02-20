@@ -1,6 +1,8 @@
 from .abc import *
 from math import pi, radians, floor
 from mathutils import Vector, Matrix, Quaternion, Euler
+from .utils import get_framerate
+from re import match
 import bpy
 
 class ModelBuilder(object):
@@ -163,6 +165,10 @@ class ModelBuilder(object):
                             node.bounds_min=Vector((min(node.bounds_min.x, vertex.location.x), min(node.bounds_min.y, vertex.location.y), min(node.bounds_min.z, vertex.location.z)))
                             node.bounds_max=Vector((max(node.bounds_min.x, vertex.location.x), max(node.bounds_min.y, vertex.location.y), max(node.bounds_min.z, vertex.location.z)))
 
+            node.md_vert_count=len(node.md_vert_list)
+            # TODO: md_vert_list
+            # obj.data.shape_keys.key_blocks['d_anim_0'].data[0..n] seem to contain all mesh vertices
+
             #print("Processed", node.name, node.bind_matrix)
             node.child_count = len(bone.children)
             model.nodes.append(node)
@@ -195,6 +201,9 @@ class ModelBuilder(object):
 
         ''' Animations '''
         for action in bpy.data.actions:
+            if match(r"^d_", action.name): # skip any actions prefixed with "d_"; they're vertex animation lanes, we don't want them in the ABCv6 output
+                continue
+
             print("Processing animation %s" % action.name)
             animation = Animation()
             animation.name = action.name
@@ -251,7 +260,7 @@ class ModelBuilder(object):
             # For now we can just use the first node!
             for time in keyframe_timings[model.nodes[0].name]['rotation_quaternion']:
                 # Expand our time
-                scaled_time = time * (1.0/0.024)
+                scaled_time = time * (1.0/get_framerate())
                 bpy.context.scene.frame_set(time, subframe=time-floor(time))
 
                 keyframe = Animation.Keyframe()
@@ -274,7 +283,7 @@ class ModelBuilder(object):
                 # So we'd have to loop through each keyframe timing, but for now this should work!
                 for time in keyframe_timing['rotation_quaternion']:
                     # Expand our time
-                    scaled_time = time * (1.0/0.024)
+                    scaled_time = time * (1.0/get_framerate())
                     bpy.context.scene.frame_set(time, subframe=time-floor(time))
 
                     transform = Animation.Keyframe.Transform()
