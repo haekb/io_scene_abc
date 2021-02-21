@@ -4,7 +4,7 @@ from enum import Enum
 
 # Blender default: 25fps = frame 0-24 for our purposes
 def get_framerate():
-    return 0.024
+    return (bpy.context.window.scene.render.fps)/1000
 
 # Enums
 class LTAVersion(Enum):

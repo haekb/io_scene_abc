@@ -214,7 +214,7 @@ class Animation(object):
 
         # LTB specific
         self.compression_type = 0
-        self.is_vetex_animation = 0
+        self.is_vertex_animation = 0
 
 
 class AnimBinding(object):
