@@ -114,6 +114,9 @@ class ABCV6ModelWriter(object):
                             node.flags=self._flag_tris
                             break
 
+            if node.md_vert_count>0:
+                node.flags|=self._flag_deformation
+
             buffer.extend(self._vector_to_bytes(node.bounds_min))
             buffer.extend(self._vector_to_bytes(node.bounds_max))
             buffer.extend(self._string_to_bytes(node.name))
@@ -121,7 +124,7 @@ class ABCV6ModelWriter(object):
             buffer.extend(struct.pack('B', node.flags))
             buffer.extend(struct.pack('I', node.md_vert_count))
             for md_vert in node.md_vert_list:
-                buffer.extend(struct.pack('H', md_vert.vertex_index))
+                buffer.extend(struct.pack('H', md_vert))
             buffer.extend(struct.pack('I', node.child_count))
 
         sections.append(Section('Nodes', bytes(buffer)));
@@ -130,9 +133,9 @@ class ABCV6ModelWriter(object):
         buffer=bytearray()
 
         buffer.extend(struct.pack('I', len(model.animations)))
-        for anim in model.animations:
+        for anim_index, anim in enumerate(model.animations):
             buffer.extend(self._string_to_bytes(anim.name))
-            buffer.extend(struct.pack('I', int(anim.keyframes[-1].time))) # final keyframe time; playing past final keyframe's time seems unpredictable
+            buffer.extend(struct.pack('I', int(anim.keyframes[-1].time))) # playing past final keyframe's time seems unpredictable
             buffer.extend(self._vector_to_bytes(anim.bounds_min))
             buffer.extend(self._vector_to_bytes(anim.bounds_max))
             buffer.extend(struct.pack('I', len(anim.keyframes)))
@@ -142,16 +145,20 @@ class ABCV6ModelWriter(object):
                 buffer.extend(self._vector_to_bytes(anim.bounds_max))
                 buffer.extend(self._string_to_bytes(keyframe.string))
 
-            for node_transform_list in anim.node_keyframe_transforms:
+            for node_index, (node_transform_list, node) in enumerate(zip(anim.node_keyframe_transforms, model.nodes)):
                 for keyframe_transform in node_transform_list:
                     if model.flip_anim:
                         keyframe_transform.rotation.conjugate()
                     buffer.extend(self._transform_to_bytes(keyframe_transform))
 
-                # TODO: vertex animation data
+                #for node in model.nodes:
+                for keyframe_index, keyframe in enumerate(anim.keyframes):
+                    for md_vert_index, md_vert in enumerate(node.md_vert_list):
+                        index=keyframe_index*node.md_vert_count+md_vert_index
+                        buffer.extend(struct.pack('BBB', int(anim.vertex_deformations[index].x*255), int(anim.vertex_deformations[index].y*255), int(anim.vertex_deformations[index].z*255)))
 
-                buffer.extend(self._vector_to_bytes(Vector((1, 1, 1)))) # TODO: node scale
-                buffer.extend(self._vector_to_bytes(Vector((0, 0, 0)))) # TODO: node transform
+                buffer.extend(self._vector_to_bytes((node.bounds_max-node.bounds_min)/255))
+                buffer.extend(self._vector_to_bytes(node.bounds_min))
 
         sections.append(Section('Animation', bytes(buffer)))
 

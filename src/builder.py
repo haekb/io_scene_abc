@@ -165,10 +165,6 @@ class ModelBuilder(object):
                             node.bounds_min=Vector((min(node.bounds_min.x, vertex.location.x), min(node.bounds_min.y, vertex.location.y), min(node.bounds_min.z, vertex.location.z)))
                             node.bounds_max=Vector((max(node.bounds_min.x, vertex.location.x), max(node.bounds_min.y, vertex.location.y), max(node.bounds_min.z, vertex.location.z)))
 
-            node.md_vert_count=len(node.md_vert_list)
-            # TODO: md_vert_list
-            # obj.data.shape_keys.key_blocks['d_anim_0'].data[0..n] seem to contain all mesh vertices
-
             #print("Processed", node.name, node.bind_matrix)
             node.child_count = len(bone.children)
             model.nodes.append(node)
@@ -209,6 +205,11 @@ class ModelBuilder(object):
             animation.name = action.name
 
             armature_object.animation_data.action = action
+
+            # TODO: make this optional for when we don't use vertex animation on anything
+            if mesh.shape_keys:
+                md_action=[md_action for md_action in bpy.data.actions if md_action.name=="d_" + action.name]
+                mesh.shape_keys.animation_data.action=md_action[0] if md_action else None
 
             # This is only one action fyi!
             fcurves = armature_object.animation_data.action.fcurves
@@ -265,13 +266,24 @@ class ModelBuilder(object):
 
                 keyframe = Animation.Keyframe()
                 keyframe.time = scaled_time
-                animation.keyframes.append(keyframe)
 
                 keyframe.bounds_min=Vector(mesh_object.bound_box[0]) # will using mesh_object here break if there's multiple mesh
                 keyframe.bounds_max=Vector(mesh_object.bound_box[6]) # objects using the same armature as a parent? DON'T DO THAT
 
-            animation.bounds_min=max([keyframe.bounds_min for keyframe in animation.keyframes])
-            animation.bounds_max=max([keyframe.bounds_max for keyframe in animation.keyframes])
+                animation.keyframes.append(keyframe)
+
+            # this is horrible, but works
+            animation.bounds_min=Vector((float("inf"), float("inf"), float("inf")))
+            animation.bounds_max=Vector((float("-inf"), float("-inf"), float("-inf")))
+
+            for keyframe in animation.keyframes:
+                animation.bounds_min.x=min(animation.bounds_min.x, keyframe.bounds_min.x)
+                animation.bounds_min.y=min(animation.bounds_min.y, keyframe.bounds_min.y)
+                animation.bounds_min.z=min(animation.bounds_min.z, keyframe.bounds_min.z)
+
+                animation.bounds_max.x=max(animation.bounds_max.x, keyframe.bounds_max.x)
+                animation.bounds_max.y=max(animation.bounds_max.y, keyframe.bounds_max.y)
+                animation.bounds_max.z=max(animation.bounds_max.z, keyframe.bounds_max.z)
 
             # Okay let's start processing our transforms!
             for node_index, (node, pose_bone) in enumerate(zip(model.nodes, armature_object.pose.bones)):
@@ -303,7 +315,72 @@ class ModelBuilder(object):
             # End For
 
             model.animations.append(animation)
-        # End For
+
+        ''' Vertex Animations '''
+
+        # Has an issue, probably in the mesh transforms
+        # TODO: try undoing the mesh bind pose so all pieces are centered on [0,0,0] before bounds calculation, and compression
+
+        # Then most trivially, you find min and max of each dimension, set scales to (maxes-mins), subtract mins from all points, then divide by scales.
+        # And the transform is set by doing the same subtract and divide to the origin
+        # Later on, to reduce artifacts, instead of just doing that and then scaling back up to 255 blindly, you could iterate over possible values UP to 255, and check sum of error^2 for each one, and choose the one with lowest total error
+        # Idea being that if you had like three evenly spaced things, then 240 may give you perfect accuracy, while 255 will not
+        # When you're compressing, you can choose to compress to less than 255, and just use a larger scale and transform to compensate
+
+        if mesh.shape_keys and len(mesh.shape_keys.key_blocks)>1:
+            for animation in model.animations:
+                shape_keys=[shape_key for shape_key in mesh.shape_keys.key_blocks if shape_key.name.startswith(animation.name)]
+
+                for node_index, node in enumerate(model.nodes):
+                    dirty_node=False
+
+                    # get all vertices for this node
+                    node_vertices=[vertex_index for vertex_index, vertex in enumerate(model.pieces[0].lods[0].vertices) if vertex.weights[0].node_index==node_index]
+
+                    node.bounds_min=Vector((float("inf"), float("inf"), float("inf")))
+                    node.bounds_max=Vector((float("-inf"), float("-inf"), float("-inf")))
+
+                    if len(node_vertices)==0:
+                        node.bounds_min=Vector()
+                        node.bounds_max=Vector()
+
+                    # get the bounds of the node
+                    for keyframe_index, keyframe in enumerate(animation.keyframes):
+                        for vertex_index in node_vertices:
+                            temp_vert=shape_keys[keyframe_index].data[vertex_index]
+
+                            if not temp_vert.co==mesh.shape_keys.key_blocks[0].data[vertex_index].co:
+                                dirty_node=True
+
+                            temp_vert=temp_vert.co
+
+                            node.bounds_min.x=min(node.bounds_min.x, temp_vert.x)
+                            node.bounds_min.y=min(node.bounds_min.y, temp_vert.y)
+                            node.bounds_min.z=min(node.bounds_min.z, temp_vert.z)
+
+                            node.bounds_max.x=max(node.bounds_max.x, temp_vert.x)
+                            node.bounds_max.y=max(node.bounds_max.y, temp_vert.y)
+                            node.bounds_max.z=max(node.bounds_max.z, temp_vert.z)
+
+                    node.md_vert_list.extend(node_vertices if dirty_node else [])
+
+                    scale=node.bounds_max-node.bounds_min
+
+                    # compress vertices
+                    for keyframe_index, keyframe in enumerate(animation.keyframes):
+                        scaled_time=keyframe.time*get_framerate()
+                        bpy.context.scene.frame_set(time, subframe=time-floor(time))
+
+                        for vertex_index in node_vertices:
+                            temp_loc=shape_keys[keyframe_index].data[vertex_index].co-node.bounds_min
+                            temp_vert=Vector((temp_loc.x/scale.x, temp_loc.y/scale.y, temp_loc.z/scale.z))
+
+                            animation.vertex_deformations.append(temp_vert)
+
+        for node in model.nodes:
+            # remove dupes, and count final
+            node.md_vert_list=list(dict.fromkeys(node.md_vert_list))
+            node.md_vert_count=len(node.md_vert_list)
 
         ''' AnimBindings '''
         anim_binding = AnimBinding()
