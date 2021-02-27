@@ -352,7 +352,7 @@ class ModelBuilder(object):
                             if not temp_vert.co==mesh.shape_keys.key_blocks[0].data[vertex_index].co:
                                 dirty_node=True
 
-                            temp_vert=temp_vert.co
+                            temp_vert=(temp_vert.co @ mesh_object.matrix_world) @ node.bind_matrix.transposed().inverted()
 
                             node.bounds_min.x=min(node.bounds_min.x, temp_vert.x)
                             node.bounds_min.y=min(node.bounds_min.y, temp_vert.y)
@@ -372,7 +372,7 @@ class ModelBuilder(object):
                         bpy.context.scene.frame_set(time, subframe=time-floor(time))
 
                         for vertex_index in node_vertices:
-                            temp_loc=shape_keys[keyframe_index].data[vertex_index].co-node.bounds_min
+                            temp_loc=(shape_keys[keyframe_index].data[vertex_index].co @ mesh_object.matrix_world) @ node.bind_matrix.transposed().inverted()-node.bounds_min
                             temp_vert=Vector((temp_loc.x/scale.x, temp_loc.y/scale.y, temp_loc.z/scale.z))
 
                             animation.vertex_deformations.append(temp_vert)

@@ -370,8 +370,8 @@ def import_model(model, options):
                 '''
                 Func End
                 '''
-
-                recursively_apply_transform(model.nodes, 0, armature_object.pose.bones, None)
+                if not (index==1 and keyframe_index==0): # this is a dumb hack to preserve the neutral pose
+                    recursively_apply_transform(model.nodes, 0, armature_object.pose.bones, None)
 
                 # For every bone
                 for bone, node in zip(armature_object.pose.bones, model.nodes):

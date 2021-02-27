@@ -330,6 +330,10 @@ class ABCV6ModelReader(object):
 
             mat_scale = Matrix()
 
+            if self._model.flip_anim:
+                reference_transform.rotation.conjugate()
+            # End
+
             mat_rot = reference_transform.rotation.to_matrix()
             mat_loc = Matrix.Translation(reference_transform.location)
             mat = mat_loc @ mat_rot.to_4x4() @ mat_scale
