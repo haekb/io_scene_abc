@@ -318,9 +318,6 @@ class ModelBuilder(object):
 
         ''' Vertex Animations '''
 
-        # Has an issue, probably in the mesh transforms
-        # TODO: try undoing the mesh bind pose so all pieces are centered on [0,0,0] before bounds calculation, and compression
-
         # Then most trivially, you find min and max of each dimension, set scales to (maxes-mins), subtract mins from all points, then divide by scales.
         # And the transform is set by doing the same subtract and divide to the origin
         # Later on, to reduce artifacts, instead of just doing that and then scaling back up to 255 blindly, you could iterate over possible values UP to 255, and check sum of error^2 for each one, and choose the one with lowest total error
@@ -331,6 +328,8 @@ class ModelBuilder(object):
 
         if mesh.shape_keys and len(mesh.shape_keys.key_blocks)>1:
             for animation in model.animations:
+                print("Processing vertex animation", animation.name)
+
                 animation.vertex_deformations=dict()
 
                 shape_keys=[shape_key for shape_key in mesh.shape_keys.key_blocks if shape_key.name.startswith(animation.name)]
@@ -367,6 +366,8 @@ class ModelBuilder(object):
                             node.bounds_max.x=max(node.bounds_max.x, temp_vert.x)
                             node.bounds_max.y=max(node.bounds_max.y, temp_vert.y)
                             node.bounds_max.z=max(node.bounds_max.z, temp_vert.z)
+
+                    animation.vertex_deformation_bounds[node]=[node.bounds_min, node.bounds_max]
 
                     node.md_vert_list.extend(node_vertices if dirty_node else [])
 

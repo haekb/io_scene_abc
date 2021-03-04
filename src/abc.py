@@ -208,6 +208,7 @@ class Animation(object):
         # Note this should line up with md_vert_list, and go on for md_vert_count * keyframe_count
         # List of 3 chars (verts)
         self.vertex_deformations = []
+        self.vertex_deformation_bounds=dict()
         # List of Vector (verts)
         # Scaled by the animation bounding box
         self.transformed_vertex_deformations = []
