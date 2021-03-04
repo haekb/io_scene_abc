@@ -313,7 +313,7 @@ def import_model(model, options):
         index = 0
         processed_frame_count=1 # 1 for neutral_pose
         for animation in model.animations:
-            print("Processing ", animation.name)
+            print("Processing", animation.name)
 
             index  = index + 1
             # Create a new action with the animation name

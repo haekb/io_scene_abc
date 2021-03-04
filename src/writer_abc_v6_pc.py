@@ -144,10 +144,14 @@ class ABCV6ModelWriter(object):
                         index=keyframe_index*node.md_vert_count+md_vert_index
                         buffer.extend(struct.pack('BBB', int(anim.vertex_deformations[node][index].x*255), int(anim.vertex_deformations[node][index].y*255), int(anim.vertex_deformations[node][index].z*255)))
 
-                scale=anim.vertex_deformation_bounds[node][1]-anim.vertex_deformation_bounds[node][0]
+                scale=Vector((1, 1, 1))
+                translation=Vector()
+                if node in anim.vertex_deformation_bounds:
+                    scale=(anim.vertex_deformation_bounds[node][1]-anim.vertex_deformation_bounds[node][0])/255
+                    translation=anim.vertex_deformation_bounds[node][0]
 
-                buffer.extend(self._vector_to_bytes(scale/255))
-                buffer.extend(self._vector_to_bytes(anim.vertex_deformation_bounds[node][0]))
+                buffer.extend(self._vector_to_bytes(scale))
+                buffer.extend(self._vector_to_bytes(translation))
 
         sections.append(Section('Animation', bytes(buffer)))
 
