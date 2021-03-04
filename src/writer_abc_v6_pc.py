@@ -105,18 +105,6 @@ class ABCV6ModelWriter(object):
         buffer=bytearray()
 
         for node in model.nodes:
-            # FIXME: this is awful, and wrong, and in the wrong place, and... don't do this
-            node.flags=self._flag_null
-            for piece in model.pieces:
-                for lod in piece.lods:
-                    for vertex in lod.vertices:
-                        if vertex.weights[0].node_index==node.index:
-                            node.flags=self._flag_tris
-                            break
-
-            if node.md_vert_count>0:
-                node.flags|=self._flag_deformation
-
             buffer.extend(self._vector_to_bytes(node.bounds_min))
             buffer.extend(self._vector_to_bytes(node.bounds_max))
             buffer.extend(self._string_to_bytes(node.name))
@@ -141,8 +129,8 @@ class ABCV6ModelWriter(object):
             buffer.extend(struct.pack('I', len(anim.keyframes)))
             for keyframe in anim.keyframes:
                 buffer.extend(struct.pack('I', int(keyframe.time)))
-                buffer.extend(self._vector_to_bytes(anim.bounds_min)) # TODO: actual keyframe bounding boxes
-                buffer.extend(self._vector_to_bytes(anim.bounds_max))
+                buffer.extend(self._vector_to_bytes(keyframe.bounds_min)) # TODO: actual keyframe bounding boxes
+                buffer.extend(self._vector_to_bytes(keyframe.bounds_max))
                 buffer.extend(self._string_to_bytes(keyframe.string))
 
             for node_index, (node_transform_list, node) in enumerate(zip(anim.node_keyframe_transforms, model.nodes)):
@@ -151,11 +139,10 @@ class ABCV6ModelWriter(object):
                         keyframe_transform.rotation.conjugate()
                     buffer.extend(self._transform_to_bytes(keyframe_transform))
 
-                #for node in model.nodes:
                 for keyframe_index, keyframe in enumerate(anim.keyframes):
                     for md_vert_index, md_vert in enumerate(node.md_vert_list):
                         index=keyframe_index*node.md_vert_count+md_vert_index
-                        buffer.extend(struct.pack('BBB', int(anim.vertex_deformations[index].x*255), int(anim.vertex_deformations[index].y*255), int(anim.vertex_deformations[index].z*255)))
+                        buffer.extend(struct.pack('BBB', int(anim.vertex_deformations[node][index].x*255), int(anim.vertex_deformations[node][index].y*255), int(anim.vertex_deformations[node][index].z*255)))
 
                 buffer.extend(self._vector_to_bytes((node.bounds_max-node.bounds_min)/255))
                 buffer.extend(self._vector_to_bytes(node.bounds_min))

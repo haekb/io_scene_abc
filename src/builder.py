@@ -207,9 +207,9 @@ class ModelBuilder(object):
             armature_object.animation_data.action = action
 
             # TODO: make this optional for when we don't use vertex animation on anything
-            if mesh.shape_keys:
-                md_action=[md_action for md_action in bpy.data.actions if md_action.name=="d_" + action.name]
-                mesh.shape_keys.animation_data.action=md_action[0] if md_action else None
+            #if mesh.shape_keys:
+            #    md_action=[md_action for md_action in bpy.data.actions if md_action.name=="d_" + action.name]
+            #    mesh.shape_keys.animation_data.action=md_action[0] if md_action else None
 
             # This is only one action fyi!
             fcurves = armature_object.animation_data.action.fcurves
@@ -327,12 +327,17 @@ class ModelBuilder(object):
         # Idea being that if you had like three evenly spaced things, then 240 may give you perfect accuracy, while 255 will not
         # When you're compressing, you can choose to compress to less than 255, and just use a larger scale and transform to compensate
 
+        vertex_tolerance=1e-5
+
         if mesh.shape_keys and len(mesh.shape_keys.key_blocks)>1:
             for animation in model.animations:
+                animation.vertex_deformations=dict()
+
                 shape_keys=[shape_key for shape_key in mesh.shape_keys.key_blocks if shape_key.name.startswith(animation.name)]
 
                 for node_index, node in enumerate(model.nodes):
                     dirty_node=False
+                    animation.vertex_deformations[node]=[]
 
                     # get all vertices for this node
                     node_vertices=[vertex_index for vertex_index, vertex in enumerate(model.pieces[0].lods[0].vertices) if vertex.weights[0].node_index==node_index]
@@ -349,7 +354,8 @@ class ModelBuilder(object):
                         for vertex_index in node_vertices:
                             temp_vert=shape_keys[keyframe_index].data[vertex_index]
 
-                            if not temp_vert.co==mesh.shape_keys.key_blocks[0].data[vertex_index].co:
+                            #if not temp_vert.co==mesh.shape_keys.key_blocks[0].data[vertex_index].co:
+                            if (temp_vert.co-mesh.shape_keys.key_blocks[0].data[vertex_index].co).length>vertex_tolerance:
                                 dirty_node=True
 
                             temp_vert=(temp_vert.co @ mesh_object.matrix_world) @ node.bind_matrix.transposed().inverted()
@@ -375,12 +381,24 @@ class ModelBuilder(object):
                             temp_loc=(shape_keys[keyframe_index].data[vertex_index].co @ mesh_object.matrix_world) @ node.bind_matrix.transposed().inverted()-node.bounds_min
                             temp_vert=Vector((temp_loc.x/scale.x, temp_loc.y/scale.y, temp_loc.z/scale.z))
 
-                            animation.vertex_deformations.append(temp_vert)
+                            animation.vertex_deformations[node].append(temp_vert)
 
         for node in model.nodes:
             # remove dupes, and count final
             node.md_vert_list=list(dict.fromkeys(node.md_vert_list))
             node.md_vert_count=len(node.md_vert_list)
+
+            # flag nodes
+            node.flags=1
+            for piece in model.pieces:
+                for lod in piece.lods:
+                    for vertex in lod.vertices:
+                        if vertex.weights[0].node_index==node.index:
+                            node.flags=2
+                            break
+
+            if node.md_vert_count>0:
+                node.flags|=4
 
         ''' AnimBindings '''
         anim_binding = AnimBinding()

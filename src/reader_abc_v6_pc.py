@@ -212,6 +212,8 @@ class ABCV6ModelReader(object):
 
         animation.keyframe_count = unpack('I', f)[0]
         animation.keyframes = [self._read_keyframe(f) for _ in range(animation.keyframe_count)]
+
+        animation.vertex_deformations=[] # FIXME: this is dumb
         for node_index in range(self._node_count):
             animation.node_keyframe_transforms.append( [self._read_transform(f) for _ in range(animation.keyframe_count)] )
 
