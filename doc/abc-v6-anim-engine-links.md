@@ -53,6 +53,7 @@ Animation names for PV weapon models:
 	sound_chance:int chance [0-100]
 	sound_voice:bool is_voice
 
-Examples:
-For a gun's PV animation to deal damage the actual fire frame needs: fire_key
-To play mon_footstep_1.wav or mon_footstep_2.wav randomly whenever a footstep frame happens: [play_sound:mon_footstep_][sound_random:2][sound_volume:50]
+# Examples:
+
+- For a gun's PV animation to deal damage the actual fire frame needs: fire_key
+- To play mon_footstep_1.wav or mon_footstep_2.wav randomly whenever a footstep frame happens: [play_sound:mon_footstep_][sound_random:2][sound_volume:50]
