@@ -70,10 +70,10 @@ class ABCV6ModelWriter(object):
         sections.append(Section('Header', bytes(buffer)))
 
         ''' Geometry '''
-        buffer=bytearray()
+        buffer = bytearray()
 
-        buffer.extend(self._vector_to_bytes(Vector((-model.internal_radius/2, -model.internal_radius/2, -model.internal_radius/2)))) # TODO: min bounds
-        buffer.extend(self._vector_to_bytes(Vector((model.internal_radius/2, model.internal_radius/2, model.internal_radius/2))))    # TODO: max bounds
+        buffer.extend(self._vector_to_bytes(Vector((-model.internal_radius / 2, -model.internal_radius / 2, -model.internal_radius / 2)))) # TODO: min bounds
+        buffer.extend(self._vector_to_bytes(Vector((model.internal_radius / 2, model.internal_radius / 2, model.internal_radius / 2))))    # TODO: max bounds
         buffer.extend(struct.pack('Ih', 0, 0)) # TODO: lod count and lod array
         '''buffer.extend(struct.pack('I', model.lod_count))
         for lod in model.lod_count
@@ -87,14 +87,14 @@ class ABCV6ModelWriter(object):
                     buffer.extend(struct.pack('2f', face.vertices[1].texcoord.x, face.vertices[1].texcoord.y))
                     buffer.extend(struct.pack('2f', face.vertices[2].texcoord.x, face.vertices[2].texcoord.y))
                     buffer.extend(struct.pack('3H', face.vertices[0].vertex_index, face.vertices[1].vertex_index, face.vertices[2].vertex_index))
-                    normal=face.normal.normalized()*127
+                    normal = face.normal.normalized() * 127
                     buffer.extend(struct.pack('3b', int(normal.x), int(-normal.y), int(normal.z)))
 
                 buffer.extend(struct.pack('I', model.vertex_count))
                 buffer.extend(struct.pack('I', len(lod.vertices))) # lod[0].vert_count
                 for vertex in lod.vertices:
                     buffer.extend(self._vector_to_bytes(vertex.weights[0].location))
-                    normal=vertex.normal.normalized()*127
+                    normal = vertex.normal.normalized() * 127
                     buffer.extend(struct.pack('3b', int(normal.x), int(-normal.y), int(normal.z)))
                     buffer.extend(struct.pack('B', vertex.weights[0].node_index)) # TODO: error out on more than a single weight?
                     buffer.extend(struct.pack('2H', 0, 0)) # TODO: lod related, I think?
@@ -102,7 +102,7 @@ class ABCV6ModelWriter(object):
         sections.append(Section('Geometry', bytes(buffer)))
 
         ''' Nodes '''
-        buffer=bytearray()
+        buffer = bytearray()
 
         for node in model.nodes:
             buffer.extend(self._vector_to_bytes(node.bounds_min))
@@ -118,7 +118,7 @@ class ABCV6ModelWriter(object):
         sections.append(Section('Nodes', bytes(buffer)));
 
         ''' Animation '''
-        buffer=bytearray()
+        buffer = bytearray()
 
         buffer.extend(struct.pack('I', len(model.animations)))
         for anim_index, anim in enumerate(model.animations):
@@ -129,7 +129,7 @@ class ABCV6ModelWriter(object):
             buffer.extend(struct.pack('I', len(anim.keyframes)))
             for keyframe in anim.keyframes:
                 buffer.extend(struct.pack('I', int(keyframe.time)))
-                buffer.extend(self._vector_to_bytes(keyframe.bounds_min)) # TODO: actual keyframe bounding boxes
+                buffer.extend(self._vector_to_bytes(keyframe.bounds_min))
                 buffer.extend(self._vector_to_bytes(keyframe.bounds_max))
                 buffer.extend(self._string_to_bytes(keyframe.string))
 
@@ -141,14 +141,14 @@ class ABCV6ModelWriter(object):
 
                 for keyframe_index, keyframe in enumerate(anim.keyframes):
                     for md_vert_index, md_vert in enumerate(node.md_vert_list):
-                        index=keyframe_index*node.md_vert_count+md_vert_index
-                        buffer.extend(struct.pack('BBB', int(anim.vertex_deformations[node][index].x*255), int(anim.vertex_deformations[node][index].y*255), int(anim.vertex_deformations[node][index].z*255)))
+                        index = keyframe_index * node.md_vert_count + md_vert_index
+                        buffer.extend(struct.pack('BBB', int(anim.vertex_deformations[node][index].x * 255), int(anim.vertex_deformations[node][index].y * 255), int(anim.vertex_deformations[node][index].z * 255)))
 
-                scale=Vector((1, 1, 1))
-                translation=Vector()
+                scale = Vector((1, 1, 1))
+                translation = Vector()
                 if node in anim.vertex_deformation_bounds:
-                    scale=(anim.vertex_deformation_bounds[node][1]-anim.vertex_deformation_bounds[node][0])/255
-                    translation=anim.vertex_deformation_bounds[node][0]
+                    scale = (anim.vertex_deformation_bounds[node][1] - anim.vertex_deformation_bounds[node][0]) / 255
+                    translation = anim.vertex_deformation_bounds[node][0]
 
                 buffer.extend(self._vector_to_bytes(scale))
                 buffer.extend(self._vector_to_bytes(translation))
@@ -156,16 +156,17 @@ class ABCV6ModelWriter(object):
         sections.append(Section('Animation', bytes(buffer)))
 
         ''' Animation Dimensions '''
-        buffer=bytearray()
+        buffer = bytearray()
 
         for anim in model.animations:
-            buffer.extend(self._vector_to_bytes((-anim.keyframes[-1].bounds_min+anim.keyframes[-1].bounds_max)/2))
+            # use final frame's bounds because last frame is the same as first frame in a loop, and unique in a non-loop (the most likely candidate for collision in-engine)
+            buffer.extend(self._vector_to_bytes((-anim.keyframes[-1].bounds_min + anim.keyframes[-1].bounds_max) / 2))
 
         sections.append(Section('AnimDims', bytes(buffer)))
 
         ''' Transform Information '''
         # TODO: I don't care about LithTech 1.5, conditional with UI toggle?
-        '''buffer=bytearray()
+        '''buffer = bytearray()
         buffer.extend(struct.pack('II', model.flip_geom, model.flip_anim))
         sections.append(Section('TransformInfo', bytes(buffer)))'''
 

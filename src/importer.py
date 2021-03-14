@@ -268,8 +268,8 @@ def import_model(model, options):
             armature_modifier = mesh_object.modifiers.new(name='Armature', type='ARMATURE')
             armature_modifier.object = armature_object
             # TODO: remove if we fix mesh neutral pose bug?
-            armature_modifier.show_in_editmode=True
-            armature_modifier.show_on_cage=True
+            armature_modifier.show_in_editmode = True
+            armature_modifier.show_on_cage = True
 
             ''' Assign vertex weighting. '''
             vertex_offset = 0
@@ -305,13 +305,13 @@ def import_model(model, options):
             obj.shape_key_add(name="neutral_pose", from_mix=False)
         # we'll animate using mesh.shape_keys.eval_time
         mesh.shape_keys.animation_data_create()
-        mesh.shape_keys.use_relative=False
+        mesh.shape_keys.use_relative = False
 
         actions = []
-        md_actions=[]
+        md_actions = []
 
         index = 0
-        processed_frame_count=1 # 1 for neutral_pose
+        processed_frame_count = 1 # 1 for neutral_pose
         for animation in model.animations:
             print("Processing", animation.name)
 
@@ -324,13 +324,13 @@ def import_model(model, options):
 
             if options.should_import_vertex_animations:
                 # Create a new shape key action with d_ prefixed animation name
-                md_action=Data.actions.new(name="d_%s" % (animation.name))
-                mesh.shape_keys.animation_data.action=md_action
+                md_action = Data.actions.new(name="d_%s" % (animation.name))
+                mesh.shape_keys.animation_data.action = md_action
 
             # For every keyframe
             for keyframe_index, keyframe in enumerate(animation.keyframes):
                 # Set keyframe time - Scale it down to the default blender animation framerate (25fps)
-                subframe_time=keyframe.time*get_framerate()
+                subframe_time = keyframe.time * get_framerate()
                 '''
                 Recursively apply transformations to a nodes children
                 Notes: It carries everything (nodes, pose_bones..) with it, because I expected it to not be a child of this scope...oops!
@@ -370,7 +370,7 @@ def import_model(model, options):
                 '''
                 Func End
                 '''
-                if not (index==1 and keyframe_index==0): # this is a dumb hack to preserve the neutral pose
+                if not (index == 1 and keyframe_index == 0): # this is a dumb hack to preserve the neutral pose
                     recursively_apply_transform(model.nodes, 0, armature_object.pose.bones, None)
 
                 # For every bone
@@ -383,27 +383,27 @@ def import_model(model, options):
                     # shape keys, here I go!
                     for obj in armature_object.children:
                         # create our shape key
-                        shape_key=obj.shape_key_add(name="%s_%d" % (animation.name, keyframe_index), from_mix=False)
+                        shape_key = obj.shape_key_add(name="%s_%d" % (animation.name, keyframe_index), from_mix=False)
 
                         for vert_index, vert in enumerate(obj.data.vertices):
-                            our_vert_index=vert_index
-                            node_index=model.pieces[0].lods[0].vertices[our_vert_index].weights[0].node_index
-                            node=model.nodes[node_index]
+                            our_vert_index = vert_index
+                            node_index = model.pieces[0].lods[0].vertices[our_vert_index].weights[0].node_index
+                            node = model.nodes[node_index]
 
-                            if node.md_vert_count>0:
-                                md_vert=node.md_vert_list.index(our_vert_index)+(keyframe_index*node.md_vert_count)
+                            if node.md_vert_count > 0:
+                                md_vert = node.md_vert_list.index(our_vert_index) + (keyframe_index*node.md_vert_count)
 
-                                vertex_transform=animation.vertex_deformations[node_index][md_vert].location
-                                shape_key.data[vert_index].co=node.bind_matrix @ vertex_transform
+                                vertex_transform = animation.vertex_deformations[node_index][md_vert].location
+                                shape_key.data[vert_index].co = node.bind_matrix @ vertex_transform
                             # End If
                         # End For
                     # End For
 
-                    mesh.shape_keys.eval_time=(processed_frame_count+keyframe_index)*10
+                    mesh.shape_keys.eval_time = (processed_frame_count + keyframe_index) * 10
                     mesh.shape_keys.keyframe_insert("eval_time", frame=subframe_time)
                 # End For
 
-            processed_frame_count+=len(animation.keyframes)
+            processed_frame_count += len(animation.keyframes)
 
             # Add to actions array
             actions.append(action)
@@ -413,7 +413,7 @@ def import_model(model, options):
         # Add our actions to animation data
         armature_object.animation_data.action = actions[0]
         if options.should_import_vertex_animations:
-            mesh.shape_keys.animation_data.action=md_actions[0]
+            mesh.shape_keys.animation_data.action = md_actions[0]
 
     ''' Vertex Animations '''
     # TODO: move it all out of the animations section
@@ -423,12 +423,12 @@ def import_model(model, options):
     #        print("Processing vertex animations for ", animation.name)
 
     # Set almost sane defaults
-    Context.scene.frame_start=0
+    Context.scene.frame_start = 0
     #Context.scene.frame_end=ceil(max([animation.keyframes[-1].time*get_framerate() for animation in model.animations]))
     # Set our keyframe time to 0
     Context.scene.frame_set(0)
     # Set this because almost 100% chance you're importing keyframes that aren't aligned to 25fps
-    Context.scene.show_subframe=True
+    Context.scene.show_subframe = True
 
     # TODO: make an option to convert to blender coordinate system
     armature_object.rotation_euler.x = math.radians(90)

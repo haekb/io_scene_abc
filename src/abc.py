@@ -72,7 +72,7 @@ class Face(object):
         self.vertices = []
 
         # ABCv6 specific
-        self.normal=Vector()
+        self.normal = Vector()
 
 
 class LOD(object):
@@ -141,8 +141,8 @@ class Node(object):
         self.child_count = 0
 
         # Version 6 specific
-        self.bounds_min=Vector()
-        self.bounds_max=Vector()
+        self.bounds_min = Vector()
+        self.bounds_max = Vector()
 
         self.md_vert_count = 0
         self.md_vert_list = []
@@ -203,12 +203,12 @@ class Animation(object):
         self.node_keyframe_transforms = []
 
         # Version 6 specific
-        self.bounds_min=Vector()
-        self.bounds_max=Vector()
+        self.bounds_min = Vector()
+        self.bounds_max = Vector()
         # Note this should line up with md_vert_list, and go on for md_vert_count * keyframe_count
         # List of 3 chars (verts)
         self.vertex_deformations = []
-        self.vertex_deformation_bounds=dict()
+        self.vertex_deformation_bounds = dict()
         # List of Vector (verts)
         # Scaled by the animation bounding box
         self.transformed_vertex_deformations = []

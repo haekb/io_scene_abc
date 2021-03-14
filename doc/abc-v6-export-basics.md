@@ -46,4 +46,4 @@ I named it BERETTA_PU.ABC, and put it in BLOOD2/MODELS/POWERUPS to make it appea
 
 ## Misc. Blender
 - There's no way to export a frame command string from Blender yet, so you'll have to put it in ModelEdit after export to do this. Make sure to press enter after typing to confirm the string.
-- If making a first person weapon model it may be helpful to create a camera object. I've found a Z position of 1.2m, and a rotation of X 90 degrees, and Z 180 degrees, with a 100 degree FOV to look fairly close to the game (in 16:9, with widescreen patches).
+- If making a first person weapon model it may be helpful to create a camera object. I've found a Z position of 1m, and a rotation of X -90 degrees, and Z 180 degrees, with a 90 degree FOV to look fairly close to the game (in 16:9, with widescreen patches).
