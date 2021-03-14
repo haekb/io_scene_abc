@@ -59,7 +59,7 @@ class ExportOperatorABC(Operator, ExportHelper):
         armature_object = context.scene.objects[self.armature]
         model = ModelBuilder().from_armature(armature_object)
 
-        if self.abc_version==ABCVersion.ABC6.value:
+        if self.abc_version == ABCVersion.ABC6.value:
             ABCV6ModelWriter().write(model, self.filepath, self.abc_version)
         else:
             ABCModelWriter().write(model, self.filepath, self.abc_version)

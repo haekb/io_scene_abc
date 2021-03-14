@@ -391,7 +391,7 @@ def import_model(model, options):
                             node = model.nodes[node_index]
 
                             if node.md_vert_count > 0:
-                                md_vert = node.md_vert_list.index(our_vert_index) + (keyframe_index*node.md_vert_count)
+                                md_vert = node.md_vert_list.index(our_vert_index) + (keyframe_index * node.md_vert_count)
 
                                 vertex_transform = animation.vertex_deformations[node_index][md_vert].location
                                 shape_key.data[vert_index].co = node.bind_matrix @ vertex_transform
@@ -424,7 +424,7 @@ def import_model(model, options):
 
     # Set almost sane defaults
     Context.scene.frame_start = 0
-    #Context.scene.frame_end=ceil(max([animation.keyframes[-1].time*get_framerate() for animation in model.animations]))
+    #Context.scene.frame_end = ceil(max([animation.keyframes[-1].time * get_framerate() for animation in model.animations]))
     # Set our keyframe time to 0
     Context.scene.frame_set(0)
     # Set this because almost 100% chance you're importing keyframes that aren't aligned to 25fps

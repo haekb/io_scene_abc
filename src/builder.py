@@ -257,7 +257,7 @@ class ModelBuilder(object):
             # For now we can just use the first node!
             for time in keyframe_timings[model.nodes[0].name]['rotation_quaternion']:
                 # Expand our time
-                scaled_time = time * (1.0/get_framerate())
+                scaled_time = time * (1.0 / get_framerate())
 
                 subframe_time = time - floor(time)
                 bpy.context.scene.frame_set(time, subframe = subframe_time)
@@ -293,7 +293,7 @@ class ModelBuilder(object):
                 # So we'd have to loop through each keyframe timing, but for now this should work!
                 for time in keyframe_timing['rotation_quaternion']:
                     # Expand our time
-                    scaled_time = time * (1.0/get_framerate())
+                    scaled_time = time * (1.0 / get_framerate())
 
                     subframe_time = time - floor(time)
                     bpy.context.scene.frame_set(time, subframe = subframe_time)
