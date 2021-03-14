@@ -3,11 +3,11 @@ import bpy_extras
 import bmesh
 import os
 import math
-from math import pi
+from math import pi, ceil
 from mathutils import Vector, Matrix, Quaternion, Euler
 from bpy.props import StringProperty, BoolProperty, FloatProperty
 from .dtx import DTX
-from .utils import show_message_box
+from .utils import show_message_box, get_framerate
 
 # Format imports
 from .reader_abc_v6_pc import ABCV6ModelReader
@@ -81,12 +81,12 @@ def import_model(model, options):
         # End If
     # End For
 
-    # FIXME: Make bones touch their parents. 
-    # This however breaks the animations. 
-    # 
-    # I think I need to offset this in the animation processing, 
+    # FIXME: Make bones touch their parents.
+    # This however breaks the animations.
+    #
+    # I think I need to offset this in the animation processing,
     # and animations might be a touch broken right now but it's not noticable...just ugly in blender.
-    # ---------------------------- 
+    # ----------------------------
     # for node in model.nodes:
     #     bone = armature.edit_bones[node.name]
 
@@ -95,7 +95,7 @@ def import_model(model, options):
     #     # End If
 
     #     for child in bone.children:
-    #         bone.tail = child.head 
+    #         bone.tail = child.head
     # # End For
 
     Ops.object.mode_set(mode='OBJECT')
@@ -131,7 +131,7 @@ def import_model(model, options):
             materials.append(material)
 
             ''' Create texture. '''
-            
+
             # Swapped over to nodes
             bsdf = material.node_tree.nodes["Principled BSDF"]
             texImage = material.node_tree.nodes.new('ShaderNodeTexImage')
@@ -267,6 +267,9 @@ def import_model(model, options):
             ''' Add an armature modifier. '''
             armature_modifier = mesh_object.modifiers.new(name='Armature', type='ARMATURE')
             armature_modifier.object = armature_object
+            # TODO: remove if we fix mesh neutral pose bug?
+            armature_modifier.show_in_editmode = True
+            armature_modifier.show_on_cage = True
 
             ''' Assign vertex weighting. '''
             vertex_offset = 0
@@ -299,29 +302,35 @@ def import_model(model, options):
         armature_object.animation_data_create()
 
         for obj in armature_object.children:
-            obj.animation_data_create()
+            obj.shape_key_add(name="neutral_pose", from_mix=False)
+        # we'll animate using mesh.shape_keys.eval_time
+        mesh.shape_keys.animation_data_create()
+        mesh.shape_keys.use_relative = False
 
         actions = []
+        md_actions = []
 
         index = 0
+        processed_frame_count = 1 # 1 for neutral_pose
         for animation in model.animations:
-            print("Processing ", animation.name)
+            print("Processing", animation.name)
 
             index  = index + 1
             # Create a new action with the animation name
             action = bpy.data.actions.new(name=animation.name)
-            
+
             # Temp set
             armature_object.animation_data.action = action
 
-            for obj in [o for o in collection.objects if o.type in {'MESH'}]:
-                obj.animation_data.action = action
+            if options.should_import_vertex_animations:
+                # Create a new shape key action with d_ prefixed animation name
+                md_action = Data.actions.new(name="d_%s" % (animation.name))
+                mesh.shape_keys.animation_data.action = md_action
 
             # For every keyframe
             for keyframe_index, keyframe in enumerate(animation.keyframes):
                 # Set keyframe time - Scale it down to the default blender animation framerate (25fps)
-                Context.scene.frame_set(keyframe.time * 0.025)
-           
+                subframe_time = keyframe.time * get_framerate()
                 '''
                 Recursively apply transformations to a nodes children
                 Notes: It carries everything (nodes, pose_bones..) with it, because I expected it to not be a child of this scope...oops!
@@ -350,7 +359,7 @@ def import_model(model, options):
                     # otherwise just use our matrix
                     if parent_matrix != None:
                         matrix = parent_matrix @ matrix
-                    
+
                     pose_bone.matrix = matrix
 
                     for _ in range(0, node.child_count):
@@ -361,53 +370,65 @@ def import_model(model, options):
                 '''
                 Func End
                 '''
-
-                
-                recursively_apply_transform(model.nodes, 0, armature_object.pose.bones, None)
+                if not (index == 1 and keyframe_index == 0): # this is a dumb hack to preserve the neutral pose
+                    recursively_apply_transform(model.nodes, 0, armature_object.pose.bones, None)
 
                 # For every bone
                 for bone, node in zip(armature_object.pose.bones, model.nodes):
-                    bone.keyframe_insert('location')
-                    bone.keyframe_insert('rotation_quaternion')
+                    bone.keyframe_insert('location', frame=subframe_time)
+                    bone.keyframe_insert('rotation_quaternion', frame=subframe_time)
                 # End For
 
                 if options.should_import_vertex_animations:
-                    # For every vert (Thanks animation_animall!)
+                    # shape keys, here I go!
                     for obj in armature_object.children:
-                        for vert_index, vert in enumerate(obj.data.vertices): 
+                        # create our shape key
+                        shape_key = obj.shape_key_add(name="%s_%d" % (animation.name, keyframe_index), from_mix=False)
 
-                            # Let's hope they're in the same order!
+                        for vert_index, vert in enumerate(obj.data.vertices):
                             our_vert_index = vert_index
                             node_index = model.pieces[0].lods[0].vertices[our_vert_index].weights[0].node_index
                             node = model.nodes[node_index]
 
                             if node.md_vert_count > 0:
-                                # Find the position of the vertex we're going to deform
-                                # It's laid out flat, so we'll need to add the result of the length of verts per frame * the framecount
                                 md_vert = node.md_vert_list.index(our_vert_index) + (keyframe_index * node.md_vert_count)
 
-                                # Grab are transformed deformation
                                 vertex_transform = animation.vertex_deformations[node_index][md_vert].location
-                                vert.co = node.bind_matrix @ vertex_transform
-
-                                vert.keyframe_insert('co', group="Vertex %s" % vert_index)
+                                shape_key.data[vert_index].co = node.bind_matrix @ vertex_transform
                             # End If
                         # End For
                     # End For
 
-            # End For
+                    mesh.shape_keys.eval_time = (processed_frame_count + keyframe_index) * 10
+                    mesh.shape_keys.keyframe_insert("eval_time", frame=subframe_time)
+                # End For
+
+            processed_frame_count += len(animation.keyframes)
 
             # Add to actions array
             actions.append(action)
+            if options.should_import_vertex_animations:
+                md_actions.append(md_action)
 
         # Add our actions to animation data
         armature_object.animation_data.action = actions[0]
+        if options.should_import_vertex_animations:
+            mesh.shape_keys.animation_data.action = md_actions[0]
 
-        for obj in armature_object.children:
-            obj.animation_data.action = actions[0]
+    ''' Vertex Animations '''
+    # TODO: move it all out of the animations section
+    #       cleaner than adding more layers of loops
+    #if options.should_import_vertex_animations:
+    #    for animation in model.animations:
+    #        print("Processing vertex animations for ", animation.name)
 
+    # Set almost sane defaults
+    Context.scene.frame_start = 0
+    #Context.scene.frame_end = ceil(max([animation.keyframes[-1].time * get_framerate() for animation in model.animations]))
     # Set our keyframe time to 0
     Context.scene.frame_set(0)
+    # Set this because almost 100% chance you're importing keyframes that aren't aligned to 25fps
+    Context.scene.show_subframe = True
 
     # TODO: make an option to convert to blender coordinate system
     armature_object.rotation_euler.x = math.radians(90)
@@ -657,14 +678,14 @@ class ImportOperatorLTB(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
             model = PCLTBModelReader().from_file(self.filepath)
         except Exception as e:
             model = PS2LTBModelReader().from_file(self.filepath)
-        
+
         # Load the model
         #try:
         #model = PS2LTBModelReader().from_file(self.filepath)
         #except Exception as e:
         #    show_message_box(str(e), "Read Error", 'ERROR')
         #    return {'CANCELLED'}
-        
+
         model.name = os.path.splitext(os.path.basename(self.filepath))[0]
         image = None
         if self.should_import_textures:

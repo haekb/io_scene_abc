@@ -5,7 +5,7 @@ from mathutils import Vector, Matrix, Quaternion
 import copy
 
 #
-# ABC Model Format Version 6 
+# ABC Model Format Version 6
 # Spec: https://web.archive.org/web/20170905023149/http://www.bop-mod.com/download/docs/LithTech-ABC-v6-File-Format.html
 #
 class ABCV6ModelReader(object):
@@ -32,7 +32,7 @@ class ABCV6ModelReader(object):
     #
     # Helpers
     # TODO: Move to utils
-    # 
+    #
     def _read_matrix(self, f):
         data = unpack('16f', f)
         rows = [data[0:4], data[4:8], data[8:12], data[12:16]]
@@ -50,7 +50,7 @@ class ABCV6ModelReader(object):
 
     #
     # Format Specific
-    # 
+    #
 
     def _read_vertex(self, f):
         vertex = Vertex()
@@ -153,8 +153,8 @@ class ABCV6ModelReader(object):
         node = Node()
 
         # These may be needed to calculate the position...
-        bounds_min = self._read_vector(f)
-        bounds_max = self._read_vector(f)
+        node.bounds_min = self._read_vector(f)
+        node.bounds_max = self._read_vector(f)
 
         # Bind matrix is set after we read in animations!
 
@@ -204,14 +204,16 @@ class ABCV6ModelReader(object):
         animation = Animation()
         animation.name = self._read_string(f)
         animation_length = unpack('I', f)[0]
-        bounds_min = self._read_vector(f)
-        bounds_max = self._read_vector(f)
+        animation.bounds_min = self._read_vector(f)
+        animation.bounds_max = self._read_vector(f)
 
         # ?
-        animation.extents = bounds_max
+        animation.extents = animation.bounds_max
 
         animation.keyframe_count = unpack('I', f)[0]
         animation.keyframes = [self._read_keyframe(f) for _ in range(animation.keyframe_count)]
+
+        animation.vertex_deformations = []
         for node_index in range(self._node_count):
             animation.node_keyframe_transforms.append( [self._read_transform(f) for _ in range(animation.keyframe_count)] )
 
@@ -322,7 +324,7 @@ class ABCV6ModelReader(object):
                     self._model.flip_geom = flip_geom
                     self._model.flip_anim = flip_anim
         # End
-        
+
         # Okay we're going to use the first animation's location and rotation data for our node's bind_matrix
         for node_index in range(len(self._model.nodes)):
             node = self._model.nodes[node_index]
@@ -360,7 +362,7 @@ class ABCV6ModelReader(object):
 
                 # Find the position of the vertex we're going to deform
                 md_vert = self._model.nodes[node_index].md_vert_list.index(vert_index)
-                
+
                 # Grab are transformed deformation
                 vertex_transform = self._model.animations[0].vertex_deformations[node_index][md_vert].location
 
