@@ -319,8 +319,6 @@ class ModelBuilder(object):
 
         ''' Vertex Animations '''
 
-        # TODO: Clean up loops that don't need to be separate, reduce duplication, etc.
-
         # Then most trivially, you find min and max of each dimension, set scales to (maxes-mins), subtract mins from all points, then divide by scales.
         # And the transform is set by doing the same subtract and divide to the origin
         # Later on, to reduce artifacts, instead of just doing that and then scaling back up to 255 blindly, you could iterate over possible values UP to 255, and check sum of error^2 for each one, and choose the one with lowest total error
@@ -331,17 +329,15 @@ class ModelBuilder(object):
 
         dependency_graph = bpy.context.evaluated_depsgraph_get()
 
-        # TODO: check if each animation has associated shape keys and if no assume neutral pose for each frame
+        # 0 or 1 shape keys means there is no vertex animation to export, skip it!
         if mesh.shape_keys and len(mesh.shape_keys.key_blocks) > 1:
-            #for action in bpy.data.actions:
             for animation in model.animations:
                 print("Processing vertex animation", animation.name)
 
-                mesh.shape_keys.animation_data.action = bpy.data.actions["d_"+animation.name] # hoping this works
+                # TODO: this doesn't allow drivers to animate shape keys, we need a way to assign actions to almost arbitrary objects
+                mesh.shape_keys.animation_data.action = bpy.data.actions["d_" + animation.name]
 
                 animation.vertex_deformations = dict()
-
-                shape_keys = [shape_key for shape_key in mesh.shape_keys.key_blocks if shape_key.name.startswith(animation.name)]
 
                 for node_index, node in enumerate(model.nodes):
                     dirty_node = False
@@ -353,11 +349,15 @@ class ModelBuilder(object):
                     node.bounds_min = Vector((float("inf"), float("inf"), float("inf")))
                     node.bounds_max = Vector((float("-inf"), float("-inf"), float("-inf")))
 
+                    # if no vertices just skip this node
                     if len(node_vertices) == 0:
                         node.bounds_min = Vector()
                         node.bounds_max = Vector()
+                        animation.vertex_deformation_bounds[node] = [node.bounds_min, node.bounds_max]
+                        continue
 
-                    # get the bounds of the node
+                    raw_vertices = []
+
                     for keyframe_index, keyframe in enumerate(animation.keyframes):
 
                         time = keyframe.time * get_framerate()
@@ -374,6 +374,7 @@ class ModelBuilder(object):
                                 dirty_node = True
 
                             temp_vert = (temp_vert.co @ mesh_object.matrix_world) @ node.bind_matrix.transposed().inverted()
+                            raw_vertices.append(temp_vert)
 
                             node.bounds_min.x = min(node.bounds_min.x, temp_vert.x)
                             node.bounds_min.y = min(node.bounds_min.y, temp_vert.y)
@@ -389,21 +390,13 @@ class ModelBuilder(object):
 
                     scale = node.bounds_max - node.bounds_min
 
-                    # compress vertices
-                    for keyframe_index, keyframe in enumerate(animation.keyframes):
+                    for raw_vertex in raw_vertices:
+                        raw_vertex -= node.bounds_min
+                        raw_vertex.x /= scale.x
+                        raw_vertex.y /= scale.y
+                        raw_vertex.z /= scale.z
 
-                        time = keyframe.time * get_framerate()
-                        subframe_time = time - floor(time)
-                        bpy.context.scene.frame_set(time, subframe = subframe_time)
-
-                        evaluated_object = mesh_object.evaluated_get(dependency_graph)
-                        vert_mesh = evaluated_object.to_mesh()
-
-                        for vertex_index in node_vertices:
-                            temp_loc = (vert_mesh.vertices[vertex_index].co @ mesh_object.matrix_world) @ node.bind_matrix.transposed().inverted() - node.bounds_min
-                            temp_vert = Vector((temp_loc.x / scale.x, temp_loc.y / scale.y, temp_loc.z / scale.z))
-
-                            animation.vertex_deformations[node].append(temp_vert)
+                    animation.vertex_deformations[node].extend(raw_vertices)
 
         for node in model.nodes:
             # remove dupes, and count final
