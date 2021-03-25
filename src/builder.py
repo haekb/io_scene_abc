@@ -329,6 +329,8 @@ class ModelBuilder(object):
 
         dependency_graph = bpy.context.evaluated_depsgraph_get()
 
+        modifiers[0].show_viewport = False # this is necessary to keep the mesh in neutral pose while we get the vertex movements; I hope there's a better way I haven't found yet
+
         # 0 or 1 shape keys means there is no vertex animation to export, skip it!
         if mesh.shape_keys and len(mesh.shape_keys.key_blocks) > 1:
             for animation in model.animations:
@@ -397,6 +399,8 @@ class ModelBuilder(object):
                         raw_vertex.z /= scale.z
 
                     animation.vertex_deformations[node].extend(raw_vertices)
+
+        modifiers[0].show_viewport = True # re-enable the modifier
 
         for node in model.nodes:
             # remove dupes, and count final
