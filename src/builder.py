@@ -319,7 +319,7 @@ class ModelBuilder(object):
 
         ''' Vertex Animations '''
 
-        # TODO: Modify this so shape keys can be animated (by driver, etc.) and will scene.frame_set, then get direct vertex data instead of name-binding a shape key per frame
+        # TODO: Clean up loops that don't need to be separate, reduce duplication, etc.
 
         # Then most trivially, you find min and max of each dimension, set scales to (maxes-mins), subtract mins from all points, then divide by scales.
         # And the transform is set by doing the same subtract and divide to the origin
@@ -361,7 +361,7 @@ class ModelBuilder(object):
                     for keyframe_index, keyframe in enumerate(animation.keyframes):
 
                         time = keyframe.time * get_framerate()
-                        subframe_time = keyframe.time - floor(keyframe.time)
+                        subframe_time = time - floor(time)
                         bpy.context.scene.frame_set(time, subframe = subframe_time)
 
                         evaluated_object = mesh_object.evaluated_get(dependency_graph)
@@ -393,17 +393,13 @@ class ModelBuilder(object):
                     for keyframe_index, keyframe in enumerate(animation.keyframes):
 
                         time = keyframe.time * get_framerate()
-                        subframe_time = keyframe.time - floor(keyframe.time)
+                        subframe_time = time - floor(time)
                         bpy.context.scene.frame_set(time, subframe = subframe_time)
-
-                        print(subframe_time)
 
                         evaluated_object = mesh_object.evaluated_get(dependency_graph)
                         vert_mesh = evaluated_object.to_mesh()
 
                         for vertex_index in node_vertices:
-                            print(evaluated_object.data.vertices[vertex_index].co)
-
                             temp_loc = (vert_mesh.vertices[vertex_index].co @ mesh_object.matrix_world) @ node.bind_matrix.transposed().inverted() - node.bounds_min
                             temp_vert = Vector((temp_loc.x / scale.x, temp_loc.y / scale.y, temp_loc.z / scale.z))
 
