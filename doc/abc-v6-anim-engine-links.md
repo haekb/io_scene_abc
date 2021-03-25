@@ -1,3 +1,6 @@
+### Blood 2
+Unsure if this applies to Shogo: MAD too.
+
 ## ABCv6 Node Names
 
 For dismemberment/locational damage system:
@@ -23,6 +26,8 @@ For dismemberment/locational damage system:
 - obj
 - l_gun
 - r_gun
+
+Nodes can be extended with additional nodes by appending _extra# to the node name with a number starting from 1, eg. torso_extra1, torso_extra2
 
 ## ABCv6 Animation Names
 
