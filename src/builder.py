@@ -329,7 +329,8 @@ class ModelBuilder(object):
 
         dependency_graph = bpy.context.evaluated_depsgraph_get()
 
-        modifiers[0].show_viewport = False # this is necessary to keep the mesh in neutral pose while we get the vertex movements; I hope there's a better way I haven't found yet
+        # this is necessary to keep the mesh in neutral pose while we get the vertex movements; I hope there's a better way I haven't found yet
+        modifiers[0].show_viewport = False # we can trust that [0] is valid due to lines 52-58
 
         # 0 or 1 shape keys means there is no vertex animation to export, skip it!
         if mesh.shape_keys and len(mesh.shape_keys.key_blocks) > 1:
@@ -376,8 +377,10 @@ class ModelBuilder(object):
                                 dirty_node = True
 
                             temp_vert = (temp_vert.co @ mesh_object.matrix_world) @ node.bind_matrix.transposed().inverted()
+
                             raw_vertices.append(temp_vert)
 
+                            # ---
                             node.bounds_min.x = min(node.bounds_min.x, temp_vert.x)
                             node.bounds_min.y = min(node.bounds_min.y, temp_vert.y)
                             node.bounds_min.z = min(node.bounds_min.z, temp_vert.z)
@@ -390,6 +393,7 @@ class ModelBuilder(object):
 
                     node.md_vert_list.extend(node_vertices if dirty_node else [])
 
+                    # compress vertices
                     scale = node.bounds_max - node.bounds_min
 
                     for raw_vertex in raw_vertices:
