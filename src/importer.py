@@ -399,7 +399,7 @@ def import_model(model, options):
                         # End For
                     # End For
 
-                    mesh.shape_keys.eval_time = (processed_frame_count + keyframe_index) * 10
+                    mesh.shape_keys.eval_time = shape_key.frame
                     mesh.shape_keys.keyframe_insert("eval_time", frame=subframe_time)
                 # End For
 
@@ -409,12 +409,6 @@ def import_model(model, options):
             actions.append(action)
             if options.should_import_vertex_animations:
                 md_actions.append(md_action)
-
-        # A lot of shape keys cause rounding issues so retime them after they're all made
-        bpy.ops.object.select_all(action='DESELECT')
-        bpy.context.view_layer.objects.active=mesh_object
-        mesh_object.select_set(True)
-        bpy.ops.object.shape_key_retime()
 
         # Add our actions to animation data
         armature_object.animation_data.action = actions[0]
