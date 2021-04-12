@@ -329,7 +329,7 @@ class ModelBuilder(object):
 
         dependency_graph = bpy.context.evaluated_depsgraph_get()
 
-        # this is necessary to keep the mesh in neutral pose while we get the vertex movements; I hope there's a better way I haven't found yet
+        # this is necessary to keep the mesh in neutral pose while we get the vertex movements
         modifiers[0].show_viewport = False # we can trust that [0] is a valid armature modifier due to lines 52-58
 
         # 0 or 1 shape keys means there is no vertex animation to export, skip it!
@@ -337,8 +337,13 @@ class ModelBuilder(object):
             for animation in model.animations:
                 print("Processing vertex animation", animation.name)
 
+                # reset shape keys at the beginning of every animation so we don't get bleeds
+                mesh.shape_keys.eval_time=0
+                for shape_key in mesh.shape_keys.key_blocks:
+                    shape_key.value=0
+
                 # TODO: this doesn't allow drivers to animate shape keys, we need a way to assign actions to almost arbitrary objects
-                mesh.shape_keys.animation_data.action = bpy.data.actions["d_" + animation.name]
+                mesh.shape_keys.animation_data.action = bpy.data.actions.get("d_" + animation.name)
 
                 animation.vertex_deformations = dict()
 
