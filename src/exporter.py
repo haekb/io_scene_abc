@@ -23,7 +23,7 @@ class ExportOperatorABC(Operator, ExportHelper):
 
     def item_cb(self, context):
         armatures_iter = filter(lambda x: x.type == 'ARMATURE', context.scene.objects)
-        return [(x.name, x.name, x.name) for x in armatures_iter] #[(x.name, x.name, '', 'OUTLINER_OB_ARMATURE', 0) for x in armatures_iter]
+        return [(x.name, x.name, '', 'OUTLINER_OB_ARMATURE', 0) for x in armatures_iter]
 
     armature: EnumProperty(
         name="Armature",

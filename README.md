@@ -32,6 +32,7 @@ Additional format information can be found in [here](https://github.com/haekb/io
  - Imported skeletal meshes are mirrored on the X axis (They're flipped back on export!)
  - Converters may not provide 1:1 source files
  - Converters don't convert lods!
+ - ABCv6 sometimes exports vertex animation nodes with an odd rotation
 
 ![](https://raw.githubusercontent.com/haekb/io_scene_lithtech/master/doc/readme/example.png)
 

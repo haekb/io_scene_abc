@@ -399,7 +399,7 @@ def import_model(model, options):
                         # End For
                     # End For
 
-                    mesh.shape_keys.eval_time = shape_key.frame
+                    mesh.shape_keys.eval_time = (processed_frame_count + keyframe_index) * 10
                     mesh.shape_keys.keyframe_insert("eval_time", frame=subframe_time)
                 # End For
 
