@@ -266,6 +266,7 @@ class ModelBuilder(object):
                 keyframe.time = scaled_time
 
                 # will using mesh_object here break if there's multiple mesh objects using the same armature as a parent? DON'T DO THAT
+                # grab any 2 opposite corners of the blender bounding box
                 keyframe.bounds_min = Vector(mesh_object.bound_box[0]) # top left back corner
                 keyframe.bounds_max = Vector(mesh_object.bound_box[6]) # bottom right front corner
 
@@ -326,14 +327,25 @@ class ModelBuilder(object):
 
         vertex_tolerance = 1e-5
 
-        # TODO: check if each animation has associated shape keys and if no assume neutral pose for each frame
+        dependency_graph = bpy.context.evaluated_depsgraph_get()
+
+        # this is necessary to keep the mesh in neutral pose while we get the vertex movements
+        modifiers[0].show_viewport = False # we can trust that [0] is a valid armature modifier due to lines 52-58
+
+        # 0 or 1 shape keys means there is no vertex animation to export, skip it!
         if mesh.shape_keys and len(mesh.shape_keys.key_blocks) > 1:
             for animation in model.animations:
                 print("Processing vertex animation", animation.name)
 
-                animation.vertex_deformations = dict()
+                # reset shape keys at the beginning of every animation so we don't get bleeds
+                mesh.shape_keys.eval_time=0
+                for shape_key in mesh.shape_keys.key_blocks:
+                    shape_key.value=0
 
-                shape_keys = [shape_key for shape_key in mesh.shape_keys.key_blocks if shape_key.name.startswith(animation.name)]
+                # TODO: this doesn't allow drivers to animate shape keys, we need a way to assign actions to almost arbitrary objects
+                mesh.shape_keys.animation_data.action = bpy.data.actions.get("d_" + animation.name)
+
+                animation.vertex_deformations = dict()
 
                 for node_index, node in enumerate(model.nodes):
                     dirty_node = False
@@ -345,20 +357,35 @@ class ModelBuilder(object):
                     node.bounds_min = Vector((float("inf"), float("inf"), float("inf")))
                     node.bounds_max = Vector((float("-inf"), float("-inf"), float("-inf")))
 
+                    # if no vertices just skip this node
                     if len(node_vertices) == 0:
                         node.bounds_min = Vector()
                         node.bounds_max = Vector()
+                        animation.vertex_deformation_bounds[node] = [node.bounds_min, node.bounds_max]
+                        continue
 
-                    # get the bounds of the node
+                    raw_vertices = []
+
                     for keyframe_index, keyframe in enumerate(animation.keyframes):
+
+                        time = keyframe.time * get_framerate()
+                        subframe_time = time - floor(time)
+                        bpy.context.scene.frame_set(time, subframe = subframe_time)
+
+                        evaluated_object = mesh_object.evaluated_get(dependency_graph)
+                        vert_mesh = evaluated_object.to_mesh()
+
                         for vertex_index in node_vertices:
-                            temp_vert = shape_keys[keyframe_index].data[vertex_index]
+                            temp_vert = vert_mesh.vertices[vertex_index]
 
                             if (temp_vert.co - mesh.shape_keys.key_blocks[0].data[vertex_index].co).length > vertex_tolerance:
                                 dirty_node = True
 
                             temp_vert = (temp_vert.co @ mesh_object.matrix_world) @ node.bind_matrix.transposed().inverted()
 
+                            raw_vertices.append(temp_vert)
+
+                            # ---
                             node.bounds_min.x = min(node.bounds_min.x, temp_vert.x)
                             node.bounds_min.y = min(node.bounds_min.y, temp_vert.y)
                             node.bounds_min.z = min(node.bounds_min.z, temp_vert.z)
@@ -371,15 +398,18 @@ class ModelBuilder(object):
 
                     node.md_vert_list.extend(node_vertices if dirty_node else [])
 
+                    # compress vertices
                     scale = node.bounds_max - node.bounds_min
 
-                    # compress vertices
-                    for keyframe_index, keyframe in enumerate(animation.keyframes):
-                        for vertex_index in node_vertices:
-                            temp_loc = (shape_keys[keyframe_index].data[vertex_index].co @ mesh_object.matrix_world) @ node.bind_matrix.transposed().inverted() - node.bounds_min
-                            temp_vert = Vector((temp_loc.x / scale.x, temp_loc.y / scale.y, temp_loc.z / scale.z))
+                    for raw_vertex in raw_vertices:
+                        raw_vertex -= node.bounds_min
+                        raw_vertex.x /= scale.x
+                        raw_vertex.y /= scale.y
+                        raw_vertex.z /= scale.z
 
-                            animation.vertex_deformations[node].append(temp_vert)
+                    animation.vertex_deformations[node].extend(raw_vertices)
+
+        modifiers[0].show_viewport = True # re-enable the armature modifier
 
         for node in model.nodes:
             # remove dupes, and count final

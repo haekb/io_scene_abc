@@ -1,3 +1,5 @@
+# Blood 2
+
 ## ABCv6 Node Names
 
 For dismemberment/locational damage system:
@@ -23,6 +25,8 @@ For dismemberment/locational damage system:
 - obj
 - l_gun
 - r_gun
+
+Nodes can be extended with additional nodes by appending _extra# to the node name with a number starting from 1, eg. torso_extra1, torso_extra2
 
 ## ABCv6 Animation Names
 
@@ -248,7 +252,7 @@ For PV weapons:
 - hide_key:string node_name
 - show_key:string node_name
 
-# Examples:
+## Examples:
 
 - For a gun's PV animation to deal damage the actual fire frame needs: fire_key
 - To play mon_footstep_1.wav or mon_footstep_2.wav randomly whenever a footstep frame happens: [play_sound:mon_footstep_][sound_random:2][sound_volume:50]
